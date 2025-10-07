@@ -75,7 +75,7 @@ PIMS==0.7
 platformdirs==4.3.8
 pooch==1.8.2
 propcache==0.3.2
-pyarrow==21.0.0
+pyarrow==16.1.0
 pycparser==2.22
 pyct==0.5.0
 Pygments==2.19.2
