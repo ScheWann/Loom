@@ -55,8 +55,11 @@ export const GOAnalysisWindow = ({
                     }
                 });
 
+                // Get the current sample's cell types data (cellTypesData is an object keyed by sampleId)
+                const currentSampleCellTypes = prevCellTypesData[sampleId] || [];
+                
                 // Create new cell types array with updated counts
-                let updatedCellTypes = [...prevCellTypesData];
+                let updatedCellTypes = [...currentSampleCellTypes];
 
                 // Reduce counts for original cell types
                 Object.entries(originalCellTypes).forEach(([cellType, count]) => {
@@ -89,7 +92,13 @@ export const GOAnalysisWindow = ({
                 }
 
                 // Sort by count (descending)
-                return updatedCellTypes.sort((a, b) => b.count - a.count);
+                updatedCellTypes = updatedCellTypes.sort((a, b) => b.count - a.count);
+                
+                // Return updated object with the modified sample data
+                return {
+                    ...prevCellTypesData,
+                    [sampleId]: updatedCellTypes
+                };
             });
 
             // Update selected cell types to include the new cell type if it doesn't exist
