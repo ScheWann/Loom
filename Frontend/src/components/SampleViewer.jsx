@@ -2107,6 +2107,36 @@ export const SampleViewer = ({
         }
     }, [selectedGenes]);
 
+    // Clean up gene data for samples that are no longer selected
+    useEffect(() => {
+        const currentSampleIds = new Set(selectedSamples.map(s => s.id));
+        
+        // Clean up kosara data
+        setKosaraDataBySample(prev => {
+            const filtered = {};
+            Object.keys(prev).forEach(sampleId => {
+                if (currentSampleIds.has(sampleId)) {
+                    filtered[sampleId] = prev[sampleId];
+                }
+            });
+            return filtered;
+        });
+        
+        // Clean up single gene data
+        setSingleGeneDataBySample(prev => {
+            const filtered = {};
+            Object.keys(prev).forEach(sampleId => {
+                if (currentSampleIds.has(sampleId)) {
+                    filtered[sampleId] = prev[sampleId];
+                }
+            });
+            return filtered;
+        });
+
+        // Clean up custom areas for samples that are no longer selected
+        setCustomAreas(prev => prev.filter(area => currentSampleIds.has(area.sampleId)));
+    }, [selectedSamples]);
+
     // Handle Kosara display toggle changes from parent
     useEffect(() => {
         if (!kosaraDisplayEnabled) {
@@ -2329,7 +2359,10 @@ export const SampleViewer = ({
 
     // Get image sizes for selected samples
     useEffect(() => {
-        if (selectedSamples.length === 0) return;
+        if (selectedSamples.length === 0) {
+            setImageSizes({});
+            return;
+        }
 
         const sampleIds = selectedSamples.map(sample => sample.id);
 
@@ -2343,16 +2376,15 @@ export const SampleViewer = ({
             .then(data => {
                 setImageSizes(data);
             });
-    }, [selectedSamples.length]);
+    }, [selectedSamples]);
 
     // Initialize modes(cell type or genes) for samples
     useEffect(() => {
         setRadioCellGeneModes(prev => {
-            const newModes = { ...prev };
+            const newModes = {};
             selectedSamples.forEach(sample => {
-                if (!newModes[sample.id]) {
-                    newModes[sample.id] = 'cellTypes';
-                }
+                // Preserve existing mode if sample was already selected, otherwise default to 'cellTypes'
+                newModes[sample.id] = prev[sample.id] || 'cellTypes';
             });
             return newModes;
         });
