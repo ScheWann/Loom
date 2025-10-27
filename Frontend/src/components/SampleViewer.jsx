@@ -1865,7 +1865,11 @@ export const SampleViewer = ({
 
         // Completed custom areas
         customAreas.forEach(area => {
-            const areaColor = convertHEXToRGB(area.color || '#ff0000');
+            // Use editAreaColor for preview if this area is being edited, otherwise use original color
+            const colorToUse = (isAreaEditPopupVisible && selectedAreaForEdit?.id === area.id) 
+                ? editAreaColor 
+                : area.color;
+            const areaColor = convertHEXToRGB(colorToUse || '#ff0000');
 
             layers.push(new PolygonLayer({
                 id: `custom-area-${area.id}`,
@@ -2048,7 +2052,7 @@ export const SampleViewer = ({
         }
 
         return layers;
-    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst]);
+    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor]);
 
     // Combine all layers
     const layers = useMemo(() => {
