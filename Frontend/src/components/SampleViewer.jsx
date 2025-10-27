@@ -108,6 +108,7 @@ export const SampleViewer = ({
     const [keyPressed, setKeyPressed] = useState(false);
 
     const magnifierRef = useRef(null);
+    const magnifierCanvasRef = useRef(null);
 
     // Track previous image URL to only reset loading state when it truly changes
     const prevMagnifierUrlRef = useRef(null);
@@ -117,6 +118,7 @@ export const SampleViewer = ({
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+    const preloadedImageRefs = useRef({}); // Cache actual Image objects for instant display
 
 
     const radioOptions = [
@@ -2243,13 +2245,36 @@ export const SampleViewer = ({
                     .then(blob => {
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
-                            setHiresImages(currentState => {
-                                const newState = {
-                                    ...currentState,
-                                    [sample.id]: imageUrl
-                                };
-                                return newState;
-                            });
+                            
+                            // Preload the image into memory for instant display
+                            const img = new Image();
+                            img.onload = () => {
+                                if (isMounted) {
+                                    // Store both URL and preloaded image reference
+                                    preloadedImageRefs.current[sample.id] = img;
+                                    setHiresImages(currentState => {
+                                        const newState = {
+                                            ...currentState,
+                                            [sample.id]: imageUrl
+                                        };
+                                        return newState;
+                                    });
+                                }
+                            };
+                            img.onerror = () => {
+                                console.error(`Failed to preload image for ${sample.id}`);
+                                // Still set the URL even if preload fails
+                                if (isMounted) {
+                                    setHiresImages(currentState => {
+                                        const newState = {
+                                            ...currentState,
+                                            [sample.id]: imageUrl
+                                        };
+                                        return newState;
+                                    });
+                                }
+                            };
+                            img.src = imageUrl;
                         }
                     })
                     .catch(error => {
@@ -2472,6 +2497,9 @@ export const SampleViewer = ({
             Object.values(hiresImages).forEach(url => {
                 try { URL.revokeObjectURL(url); } catch (e) { }
             });
+            
+            // Clear preloaded image references
+            preloadedImageRefs.current = {};
 
             if (viewStateRafRef.current) {
                 cancelAnimationFrame(viewStateRafRef.current);
@@ -2527,21 +2555,28 @@ export const SampleViewer = ({
 
     useEffect(() => {
         const currentUrl = magnifierData?.imageUrl || null;
+        const currentSampleId = magnifierData?.sampleId || null;
+        
         if (!magnifierVisible) {
             // When hidden, clear loaded flag (spinner hidden by visibility anyway)
             if (magnifierImageLoaded) setMagnifierImageLoaded(false);
-            prevMagnifierUrlRef.current = currentUrl; // store for next open
+            prevMagnifierUrlRef.current = null; // Reset to force reload on next open
             return;
         }
-        // Visible: only reset if URL actually changed
+        // Visible: reset loading state whenever URL changes OR when becoming visible for the first time
         if (prevMagnifierUrlRef.current !== currentUrl) {
             prevMagnifierUrlRef.current = currentUrl;
             if (currentUrl) {
-                setMagnifierImageLoaded(false);
+                // Check if image is already preloaded - if so, mark as loaded immediately
+                if (currentSampleId && preloadedImageRefs.current[currentSampleId]) {
+                    setMagnifierImageLoaded(true);
+                } else {
+                    setMagnifierImageLoaded(false);
+                }
                 setMagnifierImageVersion(v => v + 1); // trigger remount so onLoad always fires
             }
         }
-    }, [magnifierVisible, magnifierData?.imageUrl, magnifierImageLoaded]);
+    }, [magnifierVisible, magnifierData?.imageUrl, magnifierData?.sampleId, magnifierImageLoaded]);
 
     // Fallback initialize magnifierData if visible but not yet set (ensures spinner/image sequence shows)
     useEffect(() => {
@@ -2552,9 +2587,98 @@ export const SampleViewer = ({
         const imgUrl = hiresImages[firstSample.id];
         const size = imageSizes[firstSample.id];
         if (imgUrl && size) {
+            // Check if image is already preloaded - if so, mark as loaded immediately
+            const isPreloaded = preloadedImageRefs.current[firstSample.id] !== undefined;
+            setMagnifierImageLoaded(isPreloaded);
             setMagnifierData({ imageUrl: imgUrl, sampleId: firstSample.id, imageSize: size });
+            setMagnifierImageVersion(v => v + 1);
         }
     }, [magnifierVisible, magnifierData, selectedSamples, hiresImages, imageSizes]);
+
+    // Render preloaded image to canvas for instant display
+    useEffect(() => {
+        if (!magnifierVisible || !magnifierData || !magnifierCanvasRef.current) return;
+        
+        const canvas = magnifierCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const { sampleId, imageSize, imageUrl } = magnifierData;
+        const preloadedImg = preloadedImageRefs.current[sampleId];
+        
+        if (!imageSize) return;
+        
+        // If image is preloaded, draw it immediately
+        if (preloadedImg && preloadedImg.complete) {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Calculate the portion of the image to display based on viewport
+            const sourceX = magnifierViewport.x * preloadedImg.naturalWidth;
+            const sourceY = magnifierViewport.y * preloadedImg.naturalHeight;
+            const sourceWidth = canvas.width / 2; // Show a portion based on zoom level
+            const sourceHeight = canvas.height / 2;
+            
+            // Draw the image portion to fill the entire canvas
+            try {
+                ctx.drawImage(
+                    preloadedImg,
+                    Math.max(0, sourceX - sourceWidth / 2),
+                    Math.max(0, sourceY - sourceHeight / 2),
+                    Math.min(sourceWidth, preloadedImg.naturalWidth),
+                    Math.min(sourceHeight, preloadedImg.naturalHeight),
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                );
+                
+                // Mark as loaded
+                setMagnifierImageLoaded(true);
+            } catch (error) {
+                console.error('Error drawing to canvas:', error);
+            }
+        } else if (imageUrl) {
+            // If not preloaded, create and load the image
+            const img = new Image();
+            img.onload = () => {
+                // Store in preloaded refs for next time
+                preloadedImageRefs.current[sampleId] = img;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Calculate the portion of the image to display based on viewport
+                const sourceX = magnifierViewport.x * img.naturalWidth;
+                const sourceY = magnifierViewport.y * img.naturalHeight;
+                const sourceWidth = canvas.width / 2;
+                const sourceHeight = canvas.height / 2;
+                
+                // Draw the image
+                try {
+                    ctx.drawImage(
+                        img,
+                        Math.max(0, sourceX - sourceWidth / 2),
+                        Math.max(0, sourceY - sourceHeight / 2),
+                        Math.min(sourceWidth, img.naturalWidth),
+                        Math.min(sourceHeight, img.naturalHeight),
+                        0,
+                        0,
+                        canvas.width,
+                        canvas.height
+                    );
+                    
+                    // Mark as loaded
+                    setMagnifierImageLoaded(true);
+                } catch (error) {
+                    console.error('Error drawing to canvas:', error);
+                }
+            };
+            img.onerror = () => {
+                console.error('Failed to load magnifier image');
+                setMagnifierImageLoaded(true); // Hide spinner even on error
+            };
+            img.src = imageUrl;
+        }
+    }, [magnifierVisible, magnifierData, magnifierViewport]);
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -3153,25 +3277,22 @@ export const SampleViewer = ({
                             alignItems: 'center',
                             justifyContent: 'center'
                         }}>
-                            {/* Image (hidden until loaded) */}
+                            {/* Canvas for instant image rendering */}
                             {magnifierData && (
-                                <img
-                                    key={`magnifier-img-${magnifierImageVersion}`}
-                                    src={magnifierData.imageUrl}
-                                    alt="HD Magnifier"
+                                <canvas
+                                    ref={magnifierCanvasRef}
+                                    width={300}
+                                    height={280}
                                     style={{
                                         position: 'absolute',
-                                        width: magnifierData.imageSize[0] * 2,
-                                        height: magnifierData.imageSize[1] * 2,
-                                        left: -(magnifierViewport.x * magnifierData.imageSize[0] * 2) + 150,
-                                        top: -(magnifierViewport.y * magnifierData.imageSize[1] * 2) + 140,
+                                        left: 0,
+                                        top: 0,
+                                        width: '100%',
+                                        height: '100%',
                                         imageRendering: 'crisp-edges',
-                                        transition: 'left 0.1s ease-out, top 0.1s ease-out, opacity 0.2s',
-                                        opacity: magnifierImageLoaded ? 1 : 0
+                                        opacity: magnifierImageLoaded ? 1 : 0,
+                                        transition: 'opacity 0.2s'
                                     }}
-                                    draggable={false}
-                                    onLoad={() => setMagnifierImageLoaded(true)}
-                                    onError={() => setMagnifierImageLoaded(true)}
                                 />
                             )}
 
