@@ -880,8 +880,9 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
         top_genes = adata_filtered.uns['rank_genes_groups']['names'][cluster_name][:100].tolist()
 
         # GO enrichment analysis
+        gmt_path = os.path.join(BASE_DIR, "../Example_Data/GO_Biological_Process_2025.gmt")
         enr = gp.enrichr(gene_list=top_genes,
-                    gene_sets='GO_Biological_Process_2025',
+                    gene_sets=gmt_path,
                     organism='Human',
                     cutoff=0.05)
         
