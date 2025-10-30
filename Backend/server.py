@@ -38,8 +38,8 @@ from process import (
 app = Flask(__name__)
 CORS(app)
 
-UPLOAD_FOLDER = "../Uploaded_Data"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# UPLOAD_FOLDER = "../Uploaded_Data"
+# os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 def _search_genes_internal(sample_ids, query, limit=50):
