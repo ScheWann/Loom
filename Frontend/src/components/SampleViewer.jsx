@@ -1400,8 +1400,8 @@ export const SampleViewer = ({
             setArrowCoverageArea(coverage);
             
             if (coverage) {
-                console.log('New actual left width:', coverage.actualLeftWidth);
-                console.log('New actual right width:', coverage.actualRightWidth);
+                // console.log('New actual left width:', coverage.actualLeftWidth);
+                // console.log('New actual right width:', coverage.actualRightWidth);
                 console.log('New total coverage width:', coverage.totalWidth);
             }
         }
@@ -1415,31 +1415,34 @@ export const SampleViewer = ({
         }
 
         const trajectoryData = {
+            sampleId: selectedAreaForEdit.sampleId,
             startCoordinates: trajectoryStart,
             endCoordinates: trajectoryEnd,
             arrowWidthPixels: arrowWidth,
-            sampleId: selectedAreaForEdit.sampleId,
-            areaName: selectedAreaForEdit.name,
-            drawingPoints: selectedAreaForEdit.points
+            drawingPoints: selectedAreaForEdit.points,
+            areaName: selectedAreaForEdit.name
         };
 
         console.log('Analyzing trajectory with data:', trajectoryData);
         
-        // TODO: Add API call to backend for trajectory analysis
-        // Example:
-        // fetch('/api/analyze_trajectory', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify(trajectoryData)
-        // })
-        // .then(response => response.json())
-        // .then(result => {
-        //     console.log('Trajectory analysis result:', result);
-        //     // Handle the analysis result
-        // })
-        // .catch(error => {
-        //     console.error('Error analyzing trajectory:', error);
-        // });
+        // Call the new API endpoint
+        fetch('/api/analyze_trajectory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(trajectoryData)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                console.log('Trajectory analysis result:', result);
+            } else {
+                console.error('Analysis failed:', result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error analyzing trajectory:', error);
+            alert(`Error analyzing trajectory: ${error.message}`);
+        });
     }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops

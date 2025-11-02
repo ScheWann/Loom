@@ -32,6 +32,7 @@ from process import (
     clear_adata_cache,
     get_trajectory_gene_expression,
     get_direct_slingshot_data,
+    analyze_trajectory,
 )
 
 
@@ -423,6 +424,45 @@ def get_direct_slingshot_data_route():
         return jsonify(pseudotime_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/analyze_trajectory", methods=["POST"])
+def analyze_trajectory_route():
+    """
+    Analyze trajectory using multi-scale matching method.
+    Maps coordinates from processed image to full-resolution and finds 16um barcodes.
+    """
+    data = request.json
+    sample_id = data.get("sampleId")
+    start_coordinates = data.get("startCoordinates")
+    end_coordinates = data.get("endCoordinates")
+    arrow_width_pixels = data.get("arrowWidthPixels")
+    drawing_points = data.get("drawingPoints")
+    
+    # Validate required parameters
+    if not all([sample_id, start_coordinates, end_coordinates, drawing_points]):
+        return jsonify({
+            "status": "error",
+            "message": "Missing required parameters: sampleId, startCoordinates, endCoordinates, drawingPoints"
+        }), 400
+    
+    if arrow_width_pixels is None:
+        arrow_width_pixels = 10  # Default width
+    
+    try:
+        result = analyze_trajectory(
+            sample_id=sample_id,
+            start_coordinates=start_coordinates,
+            end_coordinates=end_coordinates,
+            arrow_width_pixels=arrow_width_pixels,
+            drawing_points=drawing_points
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error analyzing trajectory: {str(e)}"
+        }), 500
 
 
 @app.route("/api/get_trajectory_gene_expression", methods=["POST"])

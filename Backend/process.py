@@ -10,6 +10,7 @@ import gseapy as gp
 from scipy.sparse import issparse
 import random
 import squidpy as sq
+from matplotlib.path import Path
 from multiprocessing import Pool, cpu_count
 from slingshot import direct_slingshot_analysis
 
@@ -1364,6 +1365,326 @@ def get_cluster_order_by_spatial_enrichment(adata, adata_umap_title):
     cluster_order = sorted_clusters['cluster'].tolist()
     
     return cluster_order
+
+
+def convert_arrow_width_to_16um_pixels(sample_id, arrow_width_frontend_pixels):
+    """
+    Convert arrow width from frontend display pixels to 16µm VisiumHD pixels.
+    
+    Parameters:
+    - sample_id: ID of the sample (e.g., "skin_TXK6Z4X_A1_2um")
+    - arrow_width_frontend_pixels: Arrow width in frontend display pixels
+    
+    Returns:
+    - Arrow width in 16µm VisiumHD pixels
+    """
+    # Parse sample ID to get base sample and current scale
+    base_sample_id, current_scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or current_scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {current_scale} not found for sample {base_sample_id}")
+    
+    # Load the current scale adata to get scale factor
+    current_adata = get_cached_adata(sample_id)
+    if current_adata is None:
+        raise ValueError(f"Could not load adata for sample {sample_id}")
+    
+    # Get scale factor from current scale b2c data
+    IMG_KEY = "0.5_mpp_150_buffer"
+    
+    def get_library_key(adata):
+        return list(adata.uns["spatial"].keys())[0]
+
+    def get_scalefactor_from_b2c(adata, img_key):
+        lib = get_library_key(adata)
+        key = f"tissue_{img_key}_scalef"
+        return float(adata.uns["spatial"][lib]["scalefactors"][key])
+    
+    # Get scale factor for current scale
+    current_scale_factor = get_scalefactor_from_b2c(current_adata, IMG_KEY)
+    
+    # Convert frontend pixels to full-resolution pixels
+    arrow_width_fullres_pixels = arrow_width_frontend_pixels / current_scale_factor
+    
+    # Construct path to 16µm scalefactors
+    python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+    scalefactors_16um_path = os.path.join(
+        python_dir, 
+        f"{base_sample_id}", 
+        "binned_outputs", 
+        "square_016um", 
+        "spatial", 
+        "scalefactors_json.json"
+    )
+    
+    try:
+        import json
+        with open(scalefactors_16um_path, 'r') as f:
+            scalefactors_16um = json.load(f)
+        
+        # Get the scale factor for tissue_lowres_image
+        # tissue_lowres_scalef represents the ratio: lowres_image_pixel / fullres_pixel
+        tissue_lowres_scalef = scalefactors_16um.get("tissue_lowres_scalef", None)
+        tissue_hires_scalef = scalefactors_16um.get("tissue_hires_scalef", None)
+        
+        if tissue_lowres_scalef is None:
+            raise ValueError("tissue_lowres_scalef not found in 16µm scalefactors")
+        
+        # Convert full-resolution pixels to 16µm lowres pixels
+        # This is the pixel space that matches the 16µm tissue_positions.parquet coordinates
+        arrow_width_16um_pixels = arrow_width_fullres_pixels * tissue_lowres_scalef
+        
+        return {
+            "arrow_width_16um_lowres_pixels": arrow_width_16um_pixels,
+            "arrow_width_16um_hires_pixels": arrow_width_fullres_pixels * tissue_hires_scalef if tissue_hires_scalef else None,
+            "arrow_width_fullres_pixels": arrow_width_fullres_pixels,
+            "conversion_info": {
+                "current_scale": current_scale,
+                "current_scale_factor": current_scale_factor,
+                "tissue_lowres_scalef_16um": tissue_lowres_scalef,
+                "tissue_hires_scalef_16um": tissue_hires_scalef,
+                "scalefactors_path": scalefactors_16um_path
+            }
+        }
+        
+    except Exception as e:
+        raise ValueError(f"Error reading 16µm scalefactors: {str(e)}")
+
+
+def convert_coordinates_to_16um_lowres(sample_id, coordinates):
+    """
+    Convert coordinates from current scale to 16µm tissue_lowres_image space.
+    
+    The conversion process:
+    1. Current scale coordinates → full-resolution coordinates  
+    2. Full-resolution coordinates → 16µm lowres coordinates
+    
+    Parameters:
+    - sample_id: Sample ID (e.g., "skin_TXK6Z4X_A1_2um")
+    - coordinates: List of [x, y] coordinates in current scale space
+    
+    Returns:
+    - Dictionary with original and converted coordinates
+    """
+    # Parse sample ID
+    base_sample_id, current_scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info:
+        raise ValueError(f"No scales found for sample {base_sample_id}")
+    
+    # Get current scale info
+    if current_scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {current_scale} not found for sample {base_sample_id}")
+    
+    # Get 16µm scale info  
+    if "16um" not in sample_info["scales"]:
+        raise ValueError(f"16µm scale not found for sample {base_sample_id}")
+    
+    try:
+        # Load current scale adata
+        current_adata = get_cached_adata(sample_id)
+        if current_adata is None:
+            raise ValueError(f"Could not load adata for sample {sample_id}")
+        
+        # Get scale factor and crop offset from current scale
+        IMG_KEY = "0.5_mpp_150_buffer"
+        CROPPED_KEY = "spatial_cropped_150_buffer"
+        
+        lib_key = list(current_adata.uns["spatial"].keys())[0]
+        current_scalef = float(current_adata.uns["spatial"][lib_key]["scalefactors"][f"tissue_{IMG_KEY}_scalef"])
+        
+        # Get crop offset
+        if CROPPED_KEY not in current_adata.obsm:
+            raise KeyError(f"Could not find {CROPPED_KEY}, please check b2c output.")
+        S_full = np.asarray(current_adata.obsm["spatial"], dtype=float)
+        S_crop = np.asarray(current_adata.obsm[CROPPED_KEY], dtype=float)
+        D = S_full - S_crop
+        x0 = float(np.median(D[:,0]))
+        y0 = float(np.median(D[:,1]))
+        
+        # Load 16µm scalefactors
+        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+        scalefactors_16um_path = os.path.join(python_dir, base_sample_id, "binned_outputs", "square_016um", "spatial", "scalefactors_json.json")
+        
+        with open(scalefactors_16um_path, 'r') as f:
+            scalefactors_16um = json.load(f)
+        
+        # Get 16µm scale factor for tissue_lowres_image
+        tissue_lowres_scalef_16um = float(scalefactors_16um["tissue_lowres_scalef"])
+        
+        # Convert coordinates
+        coords_array = np.asarray(coordinates, dtype=float)
+        
+        # Step 1: Convert current scale coordinates to full-resolution coordinates
+        coords_fullres = np.column_stack([
+            x0 + coords_array[:,0] / current_scalef,
+            y0 + coords_array[:,1] / current_scalef
+        ])
+        
+        # Step 2: Convert full-resolution coordinates to 16µm lowres coordinates
+        coords_16um_lowres = coords_fullres * tissue_lowres_scalef_16um
+        
+        return {
+            "original_coordinates": coordinates,
+            "fullres_coordinates": coords_fullres.tolist(),
+            "coords_16um_lowres": coords_16um_lowres.tolist(),
+            "conversion_details": {
+                "current_scale": current_scale,
+                "current_scalef": current_scalef,
+                "crop_offset": {"x0": x0, "y0": y0},
+                "tissue_lowres_scalef_16um": tissue_lowres_scalef_16um
+            }
+        }
+        
+    except Exception as e:
+        raise ValueError(f"Error converting coordinates: {str(e)}")
+
+
+def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_width_pixels, drawing_points):
+    """
+    Analyze trajectory using multi-scale matching method from Jupyter notebook.
+    Maps coordinates from processed image to full-resolution and finds 16um barcodes.
+
+    Parameters:
+    - sample_id: ID of the sample (e.g., "skin_TXK6Z4X_A1_2um")
+    - start_coordinates: [x, y] start coordinates in processed image space
+    - end_coordinates: [x, y] end coordinates in processed image space
+    - arrow_width_pixels: Width of the trajectory arrow in pixels
+    - drawing_points: List of [x, y] points defining the ROI polygon
+
+    Returns:
+    - Dictionary containing analysis results with mapped coordinates and 16um barcodes
+    """
+    # Parse sample ID to get base sample and scale
+    base_sample_id, scale = sample_id.rsplit("_", 1)
+    if base_sample_id not in SAMPLES:
+        raise ValueError(f"Sample {base_sample_id} not found")
+    
+    sample_info = SAMPLES[base_sample_id]
+    if "scales" not in sample_info or scale not in sample_info["scales"]:
+        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
+    
+    scale_info = sample_info["scales"][scale]
+    
+    # Load the appropriate scale adata
+    adata = get_cached_adata(sample_id)
+    if adata is None:
+        raise ValueError(f"Could not load adata for sample {sample_id}")
+    
+    # Constants from the notebook
+    IMG_KEY = "0.5_mpp_150_buffer"
+    CROPPED_KEY = "spatial_cropped_150_buffer"
+    
+    # Helper functions from the notebook
+    def get_library_key(adata):
+        return list(adata.uns["spatial"].keys())[0]
+
+    def get_scalefactor_from_b2c(adata, img_key):
+        lib = get_library_key(adata)
+        key = f"tissue_{img_key}_scalef"
+        return float(adata.uns["spatial"][lib]["scalefactors"][key])
+
+    def recover_crop_offset_xy0(adata, cropped_key="spatial_cropped_150_buffer", spatial_key="spatial"):
+        if cropped_key not in adata.obsm:
+            raise KeyError(f"Could not find {cropped_key}, please check b2c output.")
+        S_full = np.asarray(adata.obsm[spatial_key], dtype=float)
+        S_crop = np.asarray(adata.obsm[cropped_key], dtype=float)
+        D = S_full - S_crop
+        x0 = float(np.median(D[:,0]))
+        y0 = float(np.median(D[:,1]))
+        return x0, y0
+
+    def processed_to_fullres(points_uv, x0, y0, scalef):
+        """Convert processed coordinates to full-resolution coordinates"""
+        arr = np.asarray(points_uv, dtype=float)
+        xs = x0 + arr[:,0] / scalef
+        ys = y0 + arr[:,1] / scalef
+        return np.column_stack([xs, ys])
+
+    def select_barcodes_in_polygon(tissue_positions_parquet, polygon_fullres_xy):
+        """Select barcodes that fall within the given polygon"""
+        try:
+            df = pd.read_parquet(tissue_positions_parquet).copy()
+            df = df.loc[(df["pxl_row_in_fullres"] >= 0) & (df["pxl_col_in_fullres"] >= 0)]
+            pts = np.column_stack([
+                df["pxl_col_in_fullres"].to_numpy(dtype=float),
+                df["pxl_row_in_fullres"].to_numpy(dtype=float),
+            ])
+            poly_path = Path(polygon_fullres_xy)
+            inside = poly_path.contains_points(pts)
+            
+            # Find barcode column
+            bc_col = "barcode" if "barcode" in df.columns else \
+                     "Barcode" if "Barcode" in df.columns else \
+                     "barcodes" if "barcodes" in df.columns else \
+                     "spot_id" if "spot_id" in df.columns else \
+                     "barcode_id" if "barcode_id" in df.columns else None
+            if bc_col is None:
+                raise KeyError(f"Could not find barcode column, existing columns: {list(df.columns)[:20]} ...")
+
+            out = df.loc[inside, [bc_col, "pxl_col_in_fullres", "pxl_row_in_fullres"]].copy()
+            out = out.rename(columns={
+                bc_col: "barcode",
+                "pxl_col_in_fullres": "x_fullres",
+                "pxl_row_in_fullres": "y_fullres",
+            })
+            return out
+        except Exception as e:
+            print(f"Error reading parquet file: {e}")
+            return pd.DataFrame(columns=["barcode", "x_fullres", "y_fullres"])
+    
+    try:
+        # Convert arrow width from frontend pixels to 16µm pixels
+        arrow_width_conversion = convert_arrow_width_to_16um_pixels(sample_id, arrow_width_pixels)
+        arrow_width_16um_pixels = arrow_width_conversion["arrow_width_16um_lowres_pixels"]
+        
+        # Convert trajectory coordinates to 16µm lowres space
+        trajectory_points = [start_coordinates, end_coordinates]
+        trajectory_conversion = convert_coordinates_to_16um_lowres(sample_id, trajectory_points)
+        start_16um_lowres = trajectory_conversion["coords_16um_lowres"][0]
+        end_16um_lowres = trajectory_conversion["coords_16um_lowres"][1]
+        
+        # Get scale factor and crop offset from b2c for ROI barcode selection
+        s = get_scalefactor_from_b2c(adata, IMG_KEY)
+        x0, y0 = recover_crop_offset_xy0(adata, CROPPED_KEY, "spatial")
+        
+        # Map ROI drawing points to full-resolution for barcode selection
+        roi_fullres = processed_to_fullres(drawing_points, x0, y0, s)
+        
+        # Find the 16um parquet file path
+        # Construct the expected path for 16um tissue positions
+        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+        tgt_16um_parquet = os.path.join(python_dir, f"{base_sample_id}", "binned_outputs", "square_016um", "spatial", "tissue_positions.parquet")
+        
+        # Select barcodes within the ROI polygon
+        bc16 = select_barcodes_in_polygon(tgt_16um_parquet, roi_fullres)
+        
+        result = {
+            "status": "success",
+            "trajectory": {
+                "start_16um_lowres": [ensure_json_serializable(start_16um_lowres[0]), ensure_json_serializable(start_16um_lowres[1])],
+                "end_16um_lowres": [ensure_json_serializable(end_16um_lowres[0]), ensure_json_serializable(end_16um_lowres[1])],
+                "arrow_width_16um_pixels": ensure_json_serializable(arrow_width_16um_pixels)
+            },
+            "barcodes_16um": {
+                "data": bc16.to_dict('records') if len(bc16) > 0 else []
+            },
+        }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error analyzing trajectory: {str(e)}",
+            "sample_id": sample_id
+        }
 
 
 def get_highly_variable_genes(sample_ids, top_n=20):
