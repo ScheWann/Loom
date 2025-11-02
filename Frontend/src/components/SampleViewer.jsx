@@ -3786,8 +3786,7 @@ export const SampleViewer = ({
                                 borderRadius: 8,
                                 boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
                                 padding: 12,
-                                minWidth: 240,
-                                maxWidth: 280,
+                                width: 280,
                                 pointerEvents: 'auto'
                             }}
                         >
