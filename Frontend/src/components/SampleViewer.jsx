@@ -905,7 +905,7 @@ export const SampleViewer = ({
 
             // Create ROI name for unique ID
             const roiName = `Custom Area ${customAreas.length + 1}`;
-            
+
             // Create pending area and show tooltip for customization
             const newPendingArea = {
                 id: `${roiName.replace(/\s+/g, '_')}_${currentDrawingSample}`,
@@ -1136,9 +1136,9 @@ export const SampleViewer = ({
             // Update corresponding UMAP datasets with new area color and name
             setUmapDataSets(prev => prev.map(dataset => {
                 // Check if this dataset corresponds to the edited area by matching the original area name and sample
-                if (dataset.areaName === selectedAreaForEdit.name && 
+                if (dataset.areaName === selectedAreaForEdit.name &&
                     dataset.sampleId === selectedAreaForEdit.sampleId) {
-                    
+
                     // If the area name changed, we need to update the adata_umap_title as well
                     let newAdataUmapTitle = dataset.adata_umap_title;
                     if (editAreaName !== selectedAreaForEdit.name) {
@@ -1147,7 +1147,7 @@ export const SampleViewer = ({
                         const newFormattedName = editAreaName.split(' ').join('_');
                         newAdataUmapTitle = dataset.adata_umap_title.replace(oldFormattedName, newFormattedName);
                     }
-                    
+
                     return {
                         ...dataset,
                         areaColor: editAreaColor,
@@ -1213,77 +1213,39 @@ export const SampleViewer = ({
         return inside;
     };
 
-    // Calculate arrow coverage area based on start, end points and width
-    const calculateArrowCoverageArea = useCallback((start, end, width) => {
-        if (!start || !end || !selectedAreaForEdit) return null;
-
+    // Helper function to check if a rectangle of given width can fit entirely within the area
+    const canRectangleFitInArea = useCallback((start, end, width, areaPolygon, px, py) => {
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
-        const length = Math.sqrt(dx * dx + dy * dy);
-        
-        if (length === 0) return null;
 
-        // Normalize the direction vector
-        const nx = dx / length;
-        const ny = dy / length;
-
-        // Perpendicular vector
-        const px = -ny;
-        const py = nx;
-
-        // Calculate the four corners of the rectangle
         const leftOffset = width / 2;
         const rightOffset = width / 2;
 
-        // Check boundaries and adjust offsets
-        const areaPolygon = selectedAreaForEdit.points;
-        
-        // Sample points along the arrow to check boundaries
+        // Sample points along the arrow to check if rectangle fits
         const samples = 20;
-        let maxLeftOffset = leftOffset;
-        let maxRightOffset = rightOffset;
 
         for (let i = 0; i <= samples; i++) {
             const t = i / samples;
             const centerX = start[0] + t * dx;
             const centerY = start[1] + t * dy;
 
-            // Check left side
-            for (let offset = 1; offset <= leftOffset; offset++) {
-                const testX = centerX + offset * px;
-                const testY = centerY + offset * py;
-                if (!isPointInAreaPolygon([testX, testY], areaPolygon)) {
-                    maxLeftOffset = Math.min(maxLeftOffset, offset - 1);
-                    break;
-                }
+            // Check left side point
+            const leftX = centerX + leftOffset * px;
+            const leftY = centerY + leftOffset * py;
+            if (!isPointInAreaPolygon([leftX, leftY], areaPolygon)) {
+                return false;
             }
 
-            // Check right side
-            for (let offset = 1; offset <= rightOffset; offset++) {
-                const testX = centerX - offset * px;
-                const testY = centerY - offset * py;
-                if (!isPointInAreaPolygon([testX, testY], areaPolygon)) {
-                    maxRightOffset = Math.min(maxRightOffset, offset - 1);
-                    break;
-                }
+            // Check right side point
+            const rightX = centerX - rightOffset * px;
+            const rightY = centerY - rightOffset * py;
+            if (!isPointInAreaPolygon([rightX, rightY], areaPolygon)) {
+                return false;
             }
         }
 
-        // Create the coverage area polygon
-        const coveragePoints = [
-            [start[0] + maxLeftOffset * px, start[1] + maxLeftOffset * py],
-            [end[0] + maxLeftOffset * px, end[1] + maxLeftOffset * py],
-            [end[0] - maxRightOffset * px, end[1] - maxRightOffset * py],
-            [start[0] - maxRightOffset * px, start[1] - maxRightOffset * py]
-        ];
-
-        return {
-            points: coveragePoints,
-            actualLeftWidth: maxLeftOffset,
-            actualRightWidth: maxRightOffset,
-            totalWidth: maxLeftOffset + maxRightOffset
-        };
-    }, [selectedAreaForEdit]);
+        return true;
+    }, []);
 
     // Calculate the maximum possible arrow width based on trajectory position
     const calculateMaxArrowWidth = useCallback((start, end) => {
@@ -1292,7 +1254,7 @@ export const SampleViewer = ({
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
         const length = Math.sqrt(dx * dx + dy * dy);
-        
+
         if (length === 0) return 50;
 
         // Normalize the direction vector
@@ -1304,48 +1266,85 @@ export const SampleViewer = ({
         const py = nx;
 
         const areaPolygon = selectedAreaForEdit.points;
-        
-        // Sample points along the arrow to find maximum possible width
-        const samples = 20;
-        let globalMaxWidth = 0;
 
-        for (let i = 0; i <= samples; i++) {
-            const t = i / samples;
-            const centerX = start[0] + t * dx;
-            const centerY = start[1] + t * dy;
+        // Binary search for maximum width that fits the entire rectangle
+        let minWidth = 1;
+        let maxWidth = 200; // Start with a reasonable upper bound
+        let bestWidth = minWidth;
 
-            // Find maximum distance to left boundary
-            let maxLeftDistance = 0;
-            for (let offset = 1; ; offset++) { // No limit - check until boundary
-                const testX = centerX + offset * px;
-                const testY = centerY + offset * py;
-                if (isPointInAreaPolygon([testX, testY], areaPolygon)) {
-                    maxLeftDistance = offset;
-                } else {
-                    break;
-                }
+        // First, find an upper bound by expanding until we hit a boundary
+        while (maxWidth <= 1000) { // Safety limit
+            if (canRectangleFitInArea(start, end, maxWidth, areaPolygon, px, py)) {
+                bestWidth = maxWidth;
+                maxWidth *= 2;
+            } else {
+                break;
             }
+        }
 
-            // Find maximum distance to right boundary
-            let maxRightDistance = 0;
-            for (let offset = 1; ; offset++) { // No limit - check until boundary
-                const testX = centerX - offset * px;
-                const testY = centerY - offset * py;
-                if (isPointInAreaPolygon([testX, testY], areaPolygon)) {
-                    maxRightDistance = offset;
-                } else {
-                    break;
-                }
+        // Now binary search between bestWidth and maxWidth
+        let left = bestWidth;
+        let right = maxWidth;
+
+        while (right - left > 1) {
+            const mid = Math.floor((left + right) / 2);
+            if (canRectangleFitInArea(start, end, mid, areaPolygon, px, py)) {
+                left = mid;
+            } else {
+                right = mid;
             }
-
-            // The maximum width at this point is the sum of both sides
-            const maxWidthAtPoint = maxLeftDistance + maxRightDistance;
-            globalMaxWidth = Math.max(globalMaxWidth, maxWidthAtPoint);
         }
 
         // Return at least 10 pixels minimum
-        return Math.max(10, globalMaxWidth);
-    }, [selectedAreaForEdit, isPointInAreaPolygon]);
+        return Math.max(10, left);
+    }, [selectedAreaForEdit, canRectangleFitInArea]);
+
+    // Calculate arrow coverage area based on start, end points and width
+    const calculateArrowCoverageArea = useCallback((start, end, width) => {
+        if (!start || !end || !selectedAreaForEdit) return null;
+
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const length = Math.sqrt(dx * dx + dy * dy);
+
+        if (length === 0) return null;
+
+        // Normalize the direction vector
+        const nx = dx / length;
+        const ny = dy / length;
+
+        // Perpendicular vector
+        const px = -ny;
+        const py = nx;
+
+        const areaPolygon = selectedAreaForEdit.points;
+
+        // Use the helper function to validate the rectangle can fit
+        if (!canRectangleFitInArea(start, end, width, areaPolygon, px, py)) {
+            // If the requested width doesn't fit, find the maximum width that does
+            const maxFitWidth = calculateMaxArrowWidth(start, end);
+            width = Math.min(width, maxFitWidth);
+        }
+
+        // Calculate the final offsets
+        const leftOffset = width / 2;
+        const rightOffset = width / 2;
+
+        // Create the coverage area polygon
+        const coveragePoints = [
+            [start[0] + leftOffset * px, start[1] + leftOffset * py],
+            [end[0] + leftOffset * px, end[1] + leftOffset * py],
+            [end[0] - rightOffset * px, end[1] - rightOffset * py],
+            [start[0] - rightOffset * px, start[1] - rightOffset * py]
+        ];
+
+        return {
+            points: coveragePoints,
+            actualLeftWidth: leftOffset,
+            actualRightWidth: rightOffset,
+            totalWidth: leftOffset + rightOffset
+        };
+    }, [selectedAreaForEdit, canRectangleFitInArea, calculateMaxArrowWidth]);
 
     // Handle trajectory click (double-click detection)
     const handleTrajectoryClick = useCallback((info) => {
@@ -1375,17 +1374,17 @@ export const SampleViewer = ({
             // Second click - set end point and calculate coverage
             setTrajectoryEnd(worldCoord);
             setTrajectoryClickCount(0);
-            
+
             // Calculate maximum possible width for this trajectory
             const maxWidth = calculateMaxArrowWidth(trajectoryStart, worldCoord);
             setMaxArrowWidth(maxWidth);
-            
+
             // Constrain current arrow width to the new maximum
             const constrainedWidth = Math.min(arrowWidth, maxWidth);
             if (constrainedWidth !== arrowWidth) {
                 setArrowWidth(constrainedWidth);
             }
-            
+
             const coverage = calculateArrowCoverageArea(trajectoryStart, worldCoord, constrainedWidth);
             setArrowCoverageArea(coverage);
         }
@@ -1394,11 +1393,11 @@ export const SampleViewer = ({
     // Handle arrow width change
     const handleArrowWidthChange = useCallback((width) => {
         setArrowWidth(width);
-        
+
         if (trajectoryStart && trajectoryEnd) {
             const coverage = calculateArrowCoverageArea(trajectoryStart, trajectoryEnd, width);
             setArrowCoverageArea(coverage);
-            
+
             if (coverage) {
                 // console.log('New actual left width:', coverage.actualLeftWidth);
                 // console.log('New actual right width:', coverage.actualRightWidth);
@@ -1428,18 +1427,18 @@ export const SampleViewer = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(trajectoryData)
         })
-        .then(response => response.json())
-        .then(result => {
-            if (result.status === 'success') {
-                console.log('Trajectory analysis result:', result);
-            } else {
-                console.error('Analysis failed:', result.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error analyzing trajectory:', error);
-            alert(`Error analyzing trajectory: ${error.message}`);
-        });
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'success') {
+                    console.log('Trajectory analysis result:', result);
+                } else {
+                    console.error('Analysis failed:', result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error analyzing trajectory:', error);
+                alert(`Error analyzing trajectory: ${error.message}`);
+            });
     }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops
@@ -1613,7 +1612,7 @@ export const SampleViewer = ({
         if (!points1 || !points2 || points1.length !== points2.length) {
             return false;
         }
-        
+
         // Check if all points are within tolerance distance
         return points1.every((point1, index) => {
             const point2 = points2[index];
@@ -1627,11 +1626,11 @@ export const SampleViewer = ({
     // Helper function to check for duplicate UMAP
     const findDuplicateUmap = (sampleId, areaPoints, neighbors, nPcas, resolutions) => {
         if (!umapDataSets || umapDataSets.length === 0) return null;
-        
+
         return umapDataSets.find(dataset => {
             // Check if sample ID matches
             if (dataset.sampleId !== sampleId) return false;
-            
+
             // Check if parameters match
             const datasetTitle = dataset.adata_umap_title || '';
             const titleParts = datasetTitle.split('_');
@@ -1639,14 +1638,14 @@ export const SampleViewer = ({
                 const datasetNeighbors = parseInt(titleParts[titleParts.length - 3]) || 0;
                 const datasetNPcas = parseInt(titleParts[titleParts.length - 2]) || 0;
                 const datasetResolutions = parseFloat(titleParts[titleParts.length - 1]) || 0;
-                
-                if (datasetNeighbors !== neighbors || 
-                    datasetNPcas !== nPcas || 
+
+                if (datasetNeighbors !== neighbors ||
+                    datasetNPcas !== nPcas ||
                     Math.abs(datasetResolutions - resolutions) > 0.001) {
                     return false;
                 }
             }
-            
+
             // Check if area points are similar
             return arePointsSimilar(dataset.areaPoints, areaPoints, 5); // 5 pixel tolerance
         });
@@ -2024,7 +2023,7 @@ export const SampleViewer = ({
                             }
                         }
                     }
-                    
+
                     const localId = d.id ?? d.cell_id;
                     if (hoveredSet && hoveredSet.has(String(localId))) {
                         return [255, 215, 0, 200];
@@ -2088,7 +2087,7 @@ export const SampleViewer = ({
         // Get cell data for the target sample
         const cellData = filteredCellData[trajectoryGuideline.sampleId] || [];
         const rawCellData = coordinatesData && coordinatesData[trajectoryGuideline.sampleId] ? coordinatesData[trajectoryGuideline.sampleId] : [];
-        
+
         if (cellData.length === 0 || rawCellData.length === 0) {
             return [];
         }
@@ -2111,7 +2110,7 @@ export const SampleViewer = ({
 
         // Calculate the line position based on orientation
         let lineStart, lineEnd;
-        
+
         if (trajectoryGuideline.isVertical) {
             // Chart is vertical, so show horizontal line in SampleViewer
             // Map trajectory position to cell coordinate space for Y position
@@ -2154,8 +2153,8 @@ export const SampleViewer = ({
         // Completed custom areas
         customAreas.forEach(area => {
             // Use editAreaColor for preview if this area is being edited, otherwise use original color
-            const colorToUse = (isAreaEditPopupVisible && selectedAreaForEdit?.id === area.id) 
-                ? editAreaColor 
+            const colorToUse = (isAreaEditPopupVisible && selectedAreaForEdit?.id === area.id)
+                ? editAreaColor
                 : area.color;
             const areaColor = convertHEXToRGB(colorToUse || '#ff0000');
 
@@ -2461,7 +2460,7 @@ export const SampleViewer = ({
     // Clean up gene data for samples that are no longer selected
     useEffect(() => {
         const currentSampleIds = new Set(selectedSamples.map(s => s.id));
-        
+
         // Clean up kosara data
         setKosaraDataBySample(prev => {
             const filtered = {};
@@ -2472,7 +2471,7 @@ export const SampleViewer = ({
             });
             return filtered;
         });
-        
+
         // Clean up single gene data
         setSingleGeneDataBySample(prev => {
             const filtered = {};
@@ -2626,7 +2625,7 @@ export const SampleViewer = ({
                     .then(blob => {
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
-                            
+
                             // Preload the image into memory for instant display
                             const img = new Image();
                             img.onload = () => {
@@ -2880,7 +2879,7 @@ export const SampleViewer = ({
             Object.values(hiresImages).forEach(url => {
                 try { URL.revokeObjectURL(url); } catch (e) { }
             });
-            
+
             // Clear preloaded image references
             preloadedImageRefs.current = {};
 
@@ -2939,7 +2938,7 @@ export const SampleViewer = ({
     useEffect(() => {
         const currentUrl = magnifierData?.imageUrl || null;
         const currentSampleId = magnifierData?.sampleId || null;
-        
+
         if (!magnifierVisible) {
             // When hidden, clear loaded flag (spinner hidden by visibility anyway)
             if (magnifierImageLoaded) setMagnifierImageLoaded(false);
@@ -2981,25 +2980,25 @@ export const SampleViewer = ({
     // Render preloaded image to canvas for instant display
     useEffect(() => {
         if (!magnifierVisible || !magnifierData || !magnifierCanvasRef.current) return;
-        
+
         const canvas = magnifierCanvasRef.current;
         const ctx = canvas.getContext('2d');
         const { sampleId, imageSize, imageUrl } = magnifierData;
         const preloadedImg = preloadedImageRefs.current[sampleId];
-        
+
         if (!imageSize) return;
-        
+
         // If image is preloaded, draw it immediately
         if (preloadedImg && preloadedImg.complete) {
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
+
             // Calculate the portion of the image to display based on viewport
             const sourceX = magnifierViewport.x * preloadedImg.naturalWidth;
             const sourceY = magnifierViewport.y * preloadedImg.naturalHeight;
             const sourceWidth = canvas.width / 2; // Show a portion based on zoom level
             const sourceHeight = canvas.height / 2;
-            
+
             // Draw the image portion to fill the entire canvas
             try {
                 ctx.drawImage(
@@ -3013,7 +3012,7 @@ export const SampleViewer = ({
                     canvas.width,
                     canvas.height
                 );
-                
+
                 // Mark as loaded
                 setMagnifierImageLoaded(true);
             } catch (error) {
@@ -3025,16 +3024,16 @@ export const SampleViewer = ({
             img.onload = () => {
                 // Store in preloaded refs for next time
                 preloadedImageRefs.current[sampleId] = img;
-                
+
                 // Clear canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
+
                 // Calculate the portion of the image to display based on viewport
                 const sourceX = magnifierViewport.x * img.naturalWidth;
                 const sourceY = magnifierViewport.y * img.naturalHeight;
                 const sourceWidth = canvas.width / 2;
                 const sourceHeight = canvas.height / 2;
-                
+
                 // Draw the image
                 try {
                     ctx.drawImage(
@@ -3048,7 +3047,7 @@ export const SampleViewer = ({
                         canvas.width,
                         canvas.height
                     );
-                    
+
                     // Mark as loaded
                     setMagnifierImageLoaded(true);
                 } catch (error) {
@@ -3971,7 +3970,7 @@ export const SampleViewer = ({
                                 }}>
                                     Trajectory Controls:
                                 </label>
-                                
+
                                 {/* Add Trajectory Button */}
                                 <Button
                                     size="small"
@@ -4003,24 +4002,8 @@ export const SampleViewer = ({
 
                                 {/* Arrow Width Slider */}
                                 <div style={{ marginBottom: 8 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                        <label style={{
-                                            fontSize: 12,
-                                            fontWeight: 500,
-                                            color: '#595959',
-                                            minWidth: '80px',
-                                            textAlign: 'left'
-                                        }}>
-                                            Arrow Width:
-                                        </label>
-                                        <span style={{ fontSize: 11, color: '#666' }}>
-                                            {arrowWidth}px
-                                        </span>
-                                        {trajectoryStart && trajectoryEnd && (
-                                            <span style={{ fontSize: 10, color: '#999' }}>
-                                                (max: {maxArrowWidth}px)
-                                            </span>
-                                        )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4, fontSize: 12, color: '#595959' }}>
+                                        <span style={{ fontWeight: 500 }}>Arrow Width:</span> {arrowWidth}px
                                     </div>
                                     <Slider
                                         min={5}
@@ -4030,13 +4013,6 @@ export const SampleViewer = ({
                                         style={{ marginBottom: 4 }}
                                         disabled={!isTrajectoryMode || !trajectoryStart || !trajectoryEnd}
                                     />
-                                    {arrowCoverageArea && (
-                                        <div style={{ fontSize: 10, color: '#666', textAlign: 'left' }}>
-                                            Left: {arrowCoverageArea.actualLeftWidth}px, 
-                                            Right: {arrowCoverageArea.actualRightWidth}px, 
-                                            Total: {arrowCoverageArea.totalWidth}px
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Analyze Trajectory Button */}
