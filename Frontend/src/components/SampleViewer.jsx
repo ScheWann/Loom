@@ -1423,9 +1423,6 @@ export const SampleViewer = ({
             areaName: selectedAreaForEdit.name
         };
 
-        console.log('Analyzing trajectory with data:', trajectoryData);
-        
-        // Call the new API endpoint
         fetch('/api/analyze_trajectory', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

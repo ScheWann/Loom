@@ -1642,26 +1642,39 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
             return pd.DataFrame(columns=["barcode", "x_fullres", "y_fullres"])
     
     try:
-        # Convert arrow width from frontend pixels to 16µm pixels
-        arrow_width_conversion = convert_arrow_width_to_16um_pixels(sample_id, arrow_width_pixels)
-        arrow_width_16um_pixels = arrow_width_conversion["arrow_width_16um_lowres_pixels"]
-        
-        # Convert trajectory coordinates to 16µm lowres space
-        trajectory_points = [start_coordinates, end_coordinates]
-        trajectory_conversion = convert_coordinates_to_16um_lowres(sample_id, trajectory_points)
-        start_16um_lowres = trajectory_conversion["coords_16um_lowres"][0]
-        end_16um_lowres = trajectory_conversion["coords_16um_lowres"][1]
-        
-        # Get scale factor and crop offset from b2c for ROI barcode selection
+        # Get scale factor and crop offset from b2c (same for both ROI and arrow transformations)
         s = get_scalefactor_from_b2c(adata, IMG_KEY)
         x0, y0 = recover_crop_offset_xy0(adata, CROPPED_KEY, "spatial")
         
         # Map ROI drawing points to full-resolution for barcode selection
         roi_fullres = processed_to_fullres(drawing_points, x0, y0, s)
         
+        # Map arrow coordinates using the same transformation chain as ROI
+        trajectory_points = [start_coordinates, end_coordinates]
+        trajectory_fullres = processed_to_fullres(trajectory_points, x0, y0, s)
+        
+        # Convert frontend pixels to full-resolution pixels using the same scale factor
+        arrow_width_fullres_pixels = arrow_width_pixels / s
+        
+        # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space
+        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+        scalefactors_16um_path = os.path.join(python_dir, base_sample_id, "binned_outputs", "square_016um", "spatial", "scalefactors_json.json")
+        
+        with open(scalefactors_16um_path, 'r') as f:
+            scalefactors_16um = json.load(f)
+        
+        tissue_lowres_scalef_16um = float(scalefactors_16um["tissue_lowres_scalef"])
+        
+        # Convert trajectory fullres coordinates to 16µm lowres coordinates
+        trajectory_16um_lowres = trajectory_fullres * tissue_lowres_scalef_16um
+        start_16um_lowres = trajectory_16um_lowres[0].tolist()
+        end_16um_lowres = trajectory_16um_lowres[1].tolist()
+        
+        # Convert arrow width from full-resolution to 16µm lowres pixels
+        arrow_width_16um_pixels = arrow_width_fullres_pixels * tissue_lowres_scalef_16um
+        
         # Find the 16um parquet file path
         # Construct the expected path for 16um tissue positions
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
         tgt_16um_parquet = os.path.join(python_dir, f"{base_sample_id}", "binned_outputs", "square_016um", "spatial", "tissue_positions.parquet")
         
         # Select barcodes within the ROI polygon
@@ -1678,6 +1691,12 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         
         result = {
             "status": "success",
+            # "barcode": bc16.to_dict('records'),
+            # "points":{
+            #     "start_16um_lowres": start_16um_lowres,
+            #     "end_16um_lowres": end_16um_lowres,
+            #     "arrow_width_16um_pixels": arrow_width_16um_pixels,
+            # },
             "spata2_analysis": spata2_results if spata2_results else {
                 "trajectory_data": [],
                 "significant_genes": [],
