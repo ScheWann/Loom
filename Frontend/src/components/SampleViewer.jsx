@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { CellSettings } from './CellList';
-import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin, Switch, message } from "antd";
+import { Collapse, Radio, Button, Input, ColorPicker, AutoComplete, Spin, Switch, message, Slider } from "antd";
 import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-design/icons';
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
@@ -95,6 +95,16 @@ export const SampleViewer = ({
     const [editNPcas, setEditNPcas] = useState(30);
     const [editResolutions, setEditResolutions] = useState(1);
 
+    // Trajectory drawing state
+    const [isTrajectoryMode, setIsTrajectoryMode] = useState(false);
+    const [trajectoryPoints, setTrajectoryPoints] = useState([]);
+    const [trajectoryStart, setTrajectoryStart] = useState(null);
+    const [trajectoryEnd, setTrajectoryEnd] = useState(null);
+    const [arrowWidth, setArrowWidth] = useState(15);
+    const [trajectoryClickCount, setTrajectoryClickCount] = useState(0);
+    const [arrowCoverageArea, setArrowCoverageArea] = useState(null);
+    const [maxArrowWidth, setMaxArrowWidth] = useState(50);
+
     // Minimap state
     const [minimapVisible, setMinimapVisible] = useState(true);
     const [minimapAnimating, setMinimapAnimating] = useState(false);
@@ -140,8 +150,9 @@ export const SampleViewer = ({
 
     // Stable controller instance to avoid re-initialization flashes
     const deckController = useMemo(() => {
-        if (isAreaTooltipVisible || isAreaEditPopupVisible) return false;
-        if (!isDrawing) {
+        if (isAreaTooltipVisible) return false;
+        if (isAreaEditPopupVisible && !isTrajectoryMode) return false;
+        if (!isDrawing && !isTrajectoryMode) {
             // Use DeckGL defaults to avoid controller re-inits that may cause flashes
             return true;
         }
@@ -151,7 +162,7 @@ export const SampleViewer = ({
             doubleClickZoom: false,
             scrollZoom: true
         };
-    }, [isAreaTooltipVisible, isAreaEditPopupVisible, isDrawing]);
+    }, [isAreaTooltipVisible, isAreaEditPopupVisible, isDrawing, isTrajectoryMode]);
 
     // Calculate sample offsets based on image sizes
     const sampleOffsets = useMemo(() => {
@@ -1040,7 +1051,7 @@ export const SampleViewer = ({
 
     // Handle area click for editing
     const handleAreaClick = useCallback((info) => {
-        if (isDrawing || isAreaTooltipVisible) return;
+        if (isDrawing || isAreaTooltipVisible || isTrajectoryMode) return;
 
         // Find which area was clicked
         const clickedObject = info.object;
@@ -1104,7 +1115,7 @@ export const SampleViewer = ({
                 }
             }
         }
-    }, [isDrawing, isAreaTooltipVisible, customAreas, worldToScreen]);
+    }, [isDrawing, isAreaTooltipVisible, isTrajectoryMode, customAreas, worldToScreen]);
 
     // Handle area edit save
     const handleAreaEditSave = () => {
@@ -1168,7 +1179,268 @@ export const SampleViewer = ({
         setEditNeighbors(10);
         setEditNPcas(30);
         setEditResolutions(1);
+        setIsTrajectoryMode(false);
+        setTrajectoryPoints([]);
+        setTrajectoryStart(null);
+        setTrajectoryEnd(null);
+        setTrajectoryClickCount(0);
+        setArrowCoverageArea(null);
+        setMaxArrowWidth(50);
     };
+
+    // Handle trajectory mode toggle
+    const handleTrajectoryModeToggle = () => {
+        setIsTrajectoryMode(!isTrajectoryMode);
+        setTrajectoryPoints([]);
+        setTrajectoryStart(null);
+        setTrajectoryEnd(null);
+        setTrajectoryClickCount(0);
+        setArrowCoverageArea(null);
+        setMaxArrowWidth(50);
+    };
+
+    // Check if a point is inside a polygon using ray casting algorithm
+    const isPointInAreaPolygon = (point, polygon) => {
+        const [x, y] = point;
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const [xi, yi] = polygon[i];
+            const [xj, yj] = polygon[j];
+            if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    };
+
+    // Calculate arrow coverage area based on start, end points and width
+    const calculateArrowCoverageArea = useCallback((start, end, width) => {
+        if (!start || !end || !selectedAreaForEdit) return null;
+
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const length = Math.sqrt(dx * dx + dy * dy);
+        
+        if (length === 0) return null;
+
+        // Normalize the direction vector
+        const nx = dx / length;
+        const ny = dy / length;
+
+        // Perpendicular vector
+        const px = -ny;
+        const py = nx;
+
+        // Calculate the four corners of the rectangle
+        const leftOffset = width / 2;
+        const rightOffset = width / 2;
+
+        // Check boundaries and adjust offsets
+        const areaPolygon = selectedAreaForEdit.points;
+        
+        // Sample points along the arrow to check boundaries
+        const samples = 20;
+        let maxLeftOffset = leftOffset;
+        let maxRightOffset = rightOffset;
+
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples;
+            const centerX = start[0] + t * dx;
+            const centerY = start[1] + t * dy;
+
+            // Check left side
+            for (let offset = 1; offset <= leftOffset; offset++) {
+                const testX = centerX + offset * px;
+                const testY = centerY + offset * py;
+                if (!isPointInAreaPolygon([testX, testY], areaPolygon)) {
+                    maxLeftOffset = Math.min(maxLeftOffset, offset - 1);
+                    break;
+                }
+            }
+
+            // Check right side
+            for (let offset = 1; offset <= rightOffset; offset++) {
+                const testX = centerX - offset * px;
+                const testY = centerY - offset * py;
+                if (!isPointInAreaPolygon([testX, testY], areaPolygon)) {
+                    maxRightOffset = Math.min(maxRightOffset, offset - 1);
+                    break;
+                }
+            }
+        }
+
+        // Create the coverage area polygon
+        const coveragePoints = [
+            [start[0] + maxLeftOffset * px, start[1] + maxLeftOffset * py],
+            [end[0] + maxLeftOffset * px, end[1] + maxLeftOffset * py],
+            [end[0] - maxRightOffset * px, end[1] - maxRightOffset * py],
+            [start[0] - maxRightOffset * px, start[1] - maxRightOffset * py]
+        ];
+
+        return {
+            points: coveragePoints,
+            actualLeftWidth: maxLeftOffset,
+            actualRightWidth: maxRightOffset,
+            totalWidth: maxLeftOffset + maxRightOffset
+        };
+    }, [selectedAreaForEdit]);
+
+    // Calculate the maximum possible arrow width based on trajectory position
+    const calculateMaxArrowWidth = useCallback((start, end) => {
+        if (!start || !end || !selectedAreaForEdit) return 50; // Default max
+
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const length = Math.sqrt(dx * dx + dy * dy);
+        
+        if (length === 0) return 50;
+
+        // Normalize the direction vector
+        const nx = dx / length;
+        const ny = dy / length;
+
+        // Perpendicular vector
+        const px = -ny;
+        const py = nx;
+
+        const areaPolygon = selectedAreaForEdit.points;
+        
+        // Sample points along the arrow to find maximum possible width
+        const samples = 20;
+        let globalMaxWidth = 0;
+
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples;
+            const centerX = start[0] + t * dx;
+            const centerY = start[1] + t * dy;
+
+            // Find maximum distance to left boundary
+            let maxLeftDistance = 0;
+            for (let offset = 1; ; offset++) { // No limit - check until boundary
+                const testX = centerX + offset * px;
+                const testY = centerY + offset * py;
+                if (isPointInAreaPolygon([testX, testY], areaPolygon)) {
+                    maxLeftDistance = offset;
+                } else {
+                    break;
+                }
+            }
+
+            // Find maximum distance to right boundary
+            let maxRightDistance = 0;
+            for (let offset = 1; ; offset++) { // No limit - check until boundary
+                const testX = centerX - offset * px;
+                const testY = centerY - offset * py;
+                if (isPointInAreaPolygon([testX, testY], areaPolygon)) {
+                    maxRightDistance = offset;
+                } else {
+                    break;
+                }
+            }
+
+            // The maximum width at this point is the sum of both sides
+            const maxWidthAtPoint = maxLeftDistance + maxRightDistance;
+            globalMaxWidth = Math.max(globalMaxWidth, maxWidthAtPoint);
+        }
+
+        // Return at least 10 pixels minimum
+        return Math.max(10, globalMaxWidth);
+    }, [selectedAreaForEdit, isPointInAreaPolygon]);
+
+    // Handle trajectory click (double-click detection)
+    const handleTrajectoryClick = useCallback((info) => {
+        if (!isTrajectoryMode || !selectedAreaForEdit) return;
+
+        const { coordinate } = info;
+        if (!coordinate) return;
+
+        // Check if the click is within the selected area
+        if (!isPointInAreaPolygon(coordinate, selectedAreaForEdit.points)) {
+            message.warning('Please click within the selected area');
+            return;
+        }
+
+        const worldCoord = coordinate;
+        const newClickCount = trajectoryClickCount + 1;
+
+        if (newClickCount === 1) {
+            // First click - set start point
+            setTrajectoryStart(worldCoord);
+            setTrajectoryEnd(null);
+            setArrowCoverageArea(null);
+            setTrajectoryClickCount(1);
+            setMaxArrowWidth(50); // Reset to default
+            console.log('Trajectory start point:', worldCoord);
+        } else if (newClickCount === 2) {
+            // Second click - set end point and calculate coverage
+            setTrajectoryEnd(worldCoord);
+            setTrajectoryClickCount(0);
+            
+            // Calculate maximum possible width for this trajectory
+            const maxWidth = calculateMaxArrowWidth(trajectoryStart, worldCoord);
+            setMaxArrowWidth(maxWidth);
+            
+            // Constrain current arrow width to the new maximum
+            const constrainedWidth = Math.min(arrowWidth, maxWidth);
+            if (constrainedWidth !== arrowWidth) {
+                setArrowWidth(constrainedWidth);
+            }
+            
+            const coverage = calculateArrowCoverageArea(trajectoryStart, worldCoord, constrainedWidth);
+            setArrowCoverageArea(coverage);
+        }
+    }, [isTrajectoryMode, selectedAreaForEdit, trajectoryClickCount, trajectoryStart, arrowWidth, calculateArrowCoverageArea, calculateMaxArrowWidth]);
+
+    // Handle arrow width change
+    const handleArrowWidthChange = useCallback((width) => {
+        setArrowWidth(width);
+        
+        if (trajectoryStart && trajectoryEnd) {
+            const coverage = calculateArrowCoverageArea(trajectoryStart, trajectoryEnd, width);
+            setArrowCoverageArea(coverage);
+            
+            if (coverage) {
+                console.log('New actual left width:', coverage.actualLeftWidth);
+                console.log('New actual right width:', coverage.actualRightWidth);
+                console.log('New total coverage width:', coverage.totalWidth);
+            }
+        }
+    }, [trajectoryStart, trajectoryEnd, calculateArrowCoverageArea]);
+
+    // Handle trajectory analysis
+    const handleAnalyzeTrajectory = useCallback(() => {
+        if (!trajectoryStart || !trajectoryEnd || !selectedAreaForEdit) {
+            console.error('Missing trajectory data for analysis');
+            return;
+        }
+
+        const trajectoryData = {
+            startCoordinates: trajectoryStart,
+            endCoordinates: trajectoryEnd,
+            arrowWidthPixels: arrowWidth,
+            sampleId: selectedAreaForEdit.sampleId,
+            areaName: selectedAreaForEdit.name,
+            drawingPoints: selectedAreaForEdit.points
+        };
+
+        console.log('Analyzing trajectory with data:', trajectoryData);
+        
+        // TODO: Add API call to backend for trajectory analysis
+        // Example:
+        // fetch('/api/analyze_trajectory', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(trajectoryData)
+        // })
+        // .then(response => response.json())
+        // .then(result => {
+        //     console.log('Trajectory analysis result:', result);
+        //     // Handle the analysis result
+        // })
+        // .catch(error => {
+        //     console.error('Error analyzing trajectory:', error);
+        // });
+    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops
     const getSampleAtCoordinate = useCallback((x, y) => {
@@ -1188,6 +1460,12 @@ export const SampleViewer = ({
     }, [selectedSamples, sampleOffsets, imageSizes]);
 
     const handleMapClick = useCallback((info) => {
+        // Handle trajectory clicks if in trajectory mode
+        if (isTrajectoryMode) {
+            handleTrajectoryClick(info);
+            return;
+        }
+
         // First check if we clicked on a custom area (for editing)
         if (!isDrawing && !isAreaTooltipVisible) {
             handleAreaClick(info);
@@ -1213,7 +1491,7 @@ export const SampleViewer = ({
         }
 
         setDrawingPoints(prev => [...prev, currentPoint]);
-    }, [isDrawing, isAreaTooltipVisible, shouldSnapToFirst, currentDrawingSample, drawingPoints.length, getSampleAtCoordinate, handleAreaClick]);
+    }, [isDrawing, isAreaTooltipVisible, shouldSnapToFirst, currentDrawingSample, drawingPoints.length, getSampleAtCoordinate, handleAreaClick, isTrajectoryMode, handleTrajectoryClick]);
 
     // Track mouse movement for preview
     const handleMouseMove = useCallback((info) => {
@@ -2061,8 +2339,73 @@ export const SampleViewer = ({
             }
         }
 
+        // Trajectory visualization layers
+        if (isTrajectoryMode && selectedAreaForEdit) {
+            // Show trajectory start point
+            if (trajectoryStart) {
+                layers.push(new ScatterplotLayer({
+                    id: 'trajectory-start-point',
+                    data: [{ position: trajectoryStart }],
+                    getPosition: d => d.position,
+                    getRadius: 8,
+                    getFillColor: [0, 255, 0, 200], // Green for start
+                    getLineColor: [0, 200, 0, 255],
+                    getLineWidth: 2,
+                    radiusUnits: 'pixels',
+                    lineWidthUnits: 'pixels',
+                    pickable: false,
+                }));
+            }
+
+            // Show trajectory end point and arrow line
+            if (trajectoryStart && trajectoryEnd) {
+                // End point
+                layers.push(new ScatterplotLayer({
+                    id: 'trajectory-end-point',
+                    data: [{ position: trajectoryEnd }],
+                    getPosition: d => d.position,
+                    getRadius: 8,
+                    getFillColor: [255, 0, 0, 200], // Red for end
+                    getLineColor: [200, 0, 0, 255],
+                    getLineWidth: 2,
+                    radiusUnits: 'pixels',
+                    lineWidthUnits: 'pixels',
+                    pickable: false,
+                }));
+
+                // Arrow line
+                layers.push(new LineLayer({
+                    id: 'trajectory-arrow-line',
+                    data: [{
+                        sourcePosition: trajectoryStart,
+                        targetPosition: trajectoryEnd
+                    }],
+                    getSourcePosition: d => d.sourcePosition,
+                    getTargetPosition: d => d.targetPosition,
+                    getColor: [0, 100, 255, 200], // Blue for arrow
+                    getWidth: 3,
+                    widthUnits: 'pixels',
+                    pickable: false,
+                }));
+            }
+
+            // Show arrow coverage area
+            if (arrowCoverageArea) {
+                layers.push(new PolygonLayer({
+                    id: 'arrow-coverage-area',
+                    data: [{ polygon: arrowCoverageArea.points }],
+                    getPolygon: d => d.polygon,
+                    getFillColor: [255, 255, 0, 100], // Semi-transparent yellow
+                    getLineColor: [255, 200, 0, 200],
+                    getLineWidth: 2,
+                    lineWidthUnits: 'pixels',
+                    pickable: false,
+                }));
+            }
+        }
+
         return layers;
-    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor]);
+    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea]);
 
     // Combine all layers
     const layers = useMemo(() => {
@@ -2790,6 +3133,9 @@ export const SampleViewer = ({
                         if (isAreaTooltipVisible || isAreaEditPopupVisible) {
                             return 'default';
                         }
+                        if (isTrajectoryMode) {
+                            return 'crosshair';
+                        }
                         if (isDrawing) {
                             if (mousePosition && shouldSnapToFirst(mousePosition)) {
                                 return 'pointer';
@@ -3420,11 +3766,13 @@ export const SampleViewer = ({
                                 zIndex: 999,
                                 backgroundColor: 'rgba(0, 0, 0, 0.1)',
                                 cursor: 'default',
-                                pointerEvents: 'auto'
+                                pointerEvents: isTrajectoryMode ? 'none' : 'auto'
                             }}
                             onClick={(e) => {
-                                e.stopPropagation();
-                                handleAreaEditCancel();
+                                if (!isTrajectoryMode) {
+                                    e.stopPropagation();
+                                    handleAreaEditCancel();
+                                }
                             }}
                         />
 
@@ -3468,11 +3816,11 @@ export const SampleViewer = ({
                                 fontWeight: 'bold',
                                 marginBottom: 5,
                                 fontSize: 14,
-                                color: '#262626',
+                                color: isTrajectoryMode ? '#1890ff' : '#262626',
                                 paddingRight: 20,
                                 textAlign: 'left'
                             }}>
-                                Edit Area
+                                {isTrajectoryMode ? 'Edit Area - Trajectory Mode' : 'Edit Area'}
                             </div>
 
                             {/* Area Name Input */}
@@ -3609,6 +3957,99 @@ export const SampleViewer = ({
                                         placeholder="0.5"
                                     />
                                 </div>
+                            </div>
+
+                            {/* Trajectory Controls */}
+                            <div style={{ marginBottom: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: 6,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    color: '#595959',
+                                    textAlign: 'left'
+                                }}>
+                                    Trajectory Controls:
+                                </label>
+                                
+                                {/* Add Trajectory Button */}
+                                <Button
+                                    size="small"
+                                    type={isTrajectoryMode ? "primary" : "default"}
+                                    onClick={handleTrajectoryModeToggle}
+                                    style={{ marginBottom: 8, width: '100%' }}
+                                >
+                                    {isTrajectoryMode ? 'Cancel Trajectory' : 'Add Trajectory'}
+                                </Button>
+
+                                {/* Instructions when in trajectory mode */}
+                                {isTrajectoryMode && (
+                                    <div style={{
+                                        backgroundColor: '#f0f8ff',
+                                        padding: 8,
+                                        borderRadius: 4,
+                                        marginBottom: 8,
+                                        fontSize: 11,
+                                        color: '#666'
+                                    }}>
+                                        Click within the area to set start and end points for the trajectory arrow.
+                                        {trajectoryClickCount === 1 && (
+                                            <div style={{ marginTop: 4, fontWeight: 'bold', color: '#1890ff' }}>
+                                                Click again to set the end point.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Arrow Width Slider */}
+                                <div style={{ marginBottom: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <label style={{
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            color: '#595959',
+                                            minWidth: '80px',
+                                            textAlign: 'left'
+                                        }}>
+                                            Arrow Width:
+                                        </label>
+                                        <span style={{ fontSize: 11, color: '#666' }}>
+                                            {arrowWidth}px
+                                        </span>
+                                        {trajectoryStart && trajectoryEnd && (
+                                            <span style={{ fontSize: 10, color: '#999' }}>
+                                                (max: {maxArrowWidth}px)
+                                            </span>
+                                        )}
+                                    </div>
+                                    <Slider
+                                        min={5}
+                                        max={maxArrowWidth}
+                                        value={arrowWidth}
+                                        onChange={handleArrowWidthChange}
+                                        style={{ marginBottom: 4 }}
+                                        disabled={!isTrajectoryMode || !trajectoryStart || !trajectoryEnd}
+                                    />
+                                    {arrowCoverageArea && (
+                                        <div style={{ fontSize: 10, color: '#666', textAlign: 'left' }}>
+                                            Left: {arrowCoverageArea.actualLeftWidth}px, 
+                                            Right: {arrowCoverageArea.actualRightWidth}px, 
+                                            Total: {arrowCoverageArea.totalWidth}px
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Analyze Trajectory Button */}
+                                {trajectoryStart && trajectoryEnd && (
+                                    <Button
+                                        size="small"
+                                        type="default"
+                                        onClick={handleAnalyzeTrajectory}
+                                        style={{ marginBottom: 8, width: '100%' }}
+                                    >
+                                        Analyze Trajectory
+                                    </Button>
+                                )}
                             </div>
 
                             {/* Action Buttons */}
