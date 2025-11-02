@@ -68,11 +68,11 @@ export const debounce = (func, delay) => {
 export const interpolateColor = (color1, color2, factor) => {
     const rgb1 = convertHEXToRGB(color1);
     const rgb2 = convertHEXToRGB(color2);
-    
+
     const r = Math.round(rgb1[0] + factor * (rgb2[0] - rgb1[0]));
     const g = Math.round(rgb1[1] + factor * (rgb2[1] - rgb1[1]));
     const b = Math.round(rgb1[2] + factor * (rgb2[2] - rgb1[2]));
-    
+
     return [r, g, b];
 };
 
@@ -82,7 +82,7 @@ export const getSequentialColor = (value, minValue, maxValue, baseColor = "#b300
         // If all values are the same, return a middle color
         return interpolateColor("#ffffff", baseColor, 0.5);
     }
-    
+
     // Normalize value
     const normalizedValue = (value - minValue) / (maxValue - minValue);
 
