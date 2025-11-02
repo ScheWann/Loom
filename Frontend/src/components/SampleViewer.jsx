@@ -889,12 +889,18 @@ export const SampleViewer = ({
 
     const finishDrawing = () => {
         if (drawingPoints.length >= 3 && currentDrawingSample) {
+            console.log('Raw ROI Coordinates:', drawingPoints);
+            console.log(`ROI Sample: ${currentDrawingSample}`);
+
+            // Create ROI name for unique ID
+            const roiName = `Custom Area ${customAreas.length + 1}`;
+            
             // Create pending area and show tooltip for customization
             const newPendingArea = {
-                id: `area-${Date.now()}`,
+                id: `${roiName.replace(/\s+/g, '_')}_${currentDrawingSample}`,
                 sampleId: currentDrawingSample,
                 points: [...drawingPoints],
-                name: `Custom Area ${customAreas.length + 1}`,
+                name: roiName,
                 color: '#f72585'
             };
 
@@ -926,9 +932,11 @@ export const SampleViewer = ({
     // Handle area tooltip actions
     const handleAreaTooltipSave = () => {
         if (pendingArea) {
+            const finalAreaName = areaName || pendingArea.name;
             const finalArea = {
                 ...pendingArea,
-                name: areaName || pendingArea.name,
+                id: `${finalAreaName.replace(/\s+/g, '_')}_${pendingArea.sampleId}`,
+                name: finalAreaName,
                 color: areaColor
             };
             setCustomAreas(prev => [...prev, finalArea]);
