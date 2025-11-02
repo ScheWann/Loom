@@ -13,6 +13,7 @@ import squidpy as sq
 from matplotlib.path import Path
 from multiprocessing import Pool, cpu_count
 from slingshot import direct_slingshot_analysis
+from spata2_analysis import run_spata2_analysis
 
 # Disable the PIL image limit entirely
 Image.MAX_IMAGE_PIXELS = None
@@ -1549,7 +1550,8 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
 def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_width_pixels, drawing_points):
     """
     Analyze trajectory using multi-scale matching method from Jupyter notebook.
-    Maps coordinates from processed image to full-resolution and finds 16um barcodes.
+    Maps coordinates from processed image to full-resolution, finds 16um barcodes,
+    and runs SPATA2 R analysis to get trajectory gene expression data.
 
     Parameters:
     - sample_id: ID of the sample (e.g., "skin_TXK6Z4X_A1_2um")
@@ -1559,7 +1561,7 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
     - drawing_points: List of [x, y] points defining the ROI polygon
 
     Returns:
-    - Dictionary containing analysis results with mapped coordinates and 16um barcodes
+    - Dictionary containing analysis results with mapped coordinates, 16um barcodes, and trajectory data
     """
     # Parse sample ID to get base sample and scale
     base_sample_id, scale = sample_id.rsplit("_", 1)
@@ -1665,16 +1667,22 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         # Select barcodes within the ROI polygon
         bc16 = select_barcodes_in_polygon(tgt_16um_parquet, roi_fullres)
         
+        # Run SPATA2 analysis
+        spata2_results = run_spata2_analysis(
+            base_sample_id, 
+            bc16.to_dict('records') if len(bc16) > 0 else [],
+            start_16um_lowres, 
+            end_16um_lowres, 
+            arrow_width_16um_pixels
+        )
+        
         result = {
             "status": "success",
-            "trajectory": {
-                "start_16um_lowres": [ensure_json_serializable(start_16um_lowres[0]), ensure_json_serializable(start_16um_lowres[1])],
-                "end_16um_lowres": [ensure_json_serializable(end_16um_lowres[0]), ensure_json_serializable(end_16um_lowres[1])],
-                "arrow_width_16um_pixels": ensure_json_serializable(arrow_width_16um_pixels)
-            },
-            "barcodes_16um": {
-                "data": bc16.to_dict('records') if len(bc16) > 0 else []
-            },
+            "spata2_analysis": spata2_results if spata2_results else {
+                "trajectory_data": [],
+                "significant_genes": [],
+                "trajectory_id": None
+            }
         }
         
         return result
