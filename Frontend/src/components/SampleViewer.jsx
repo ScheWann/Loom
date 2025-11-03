@@ -1167,7 +1167,7 @@ export const SampleViewer = ({
                 return dataset;
             }));
         }
-        handleAreaEditCancel();
+        message.success('Area changes saved.');
     };
 
     // Handle area deletion
@@ -1207,7 +1207,7 @@ export const SampleViewer = ({
         setTrajectoryClickCount(0);
         setArrowCoverageArea(null);
         setMaxArrowWidth(50);
-        
+
         // Generate default trajectory name when entering trajectory mode
         if (newIsTrajectoryMode && selectedAreaForEdit) {
             const existingTrajectories = selectedAreaForEdit.trajectories || [];
@@ -1508,7 +1508,7 @@ export const SampleViewer = ({
                     const result = JSON.parse(text);
                     if (result.status === 'success') {
                         console.log('Trajectory analysis result:', result);
-                        
+
                         // Store trajectory in the area
                         const newTrajectory = {
                             id: `trajectory_${Date.now()}`,
@@ -1518,7 +1518,7 @@ export const SampleViewer = ({
                             width: arrowWidth,
                             analysisResult: result
                         };
-                        
+
                         // Update the area with the new trajectory
                         const updatedAreas = customAreas.map(area => {
                             if (area.id === selectedAreaForEdit.id) {
@@ -1530,15 +1530,15 @@ export const SampleViewer = ({
                             }
                             return area;
                         });
-                        
+
                         setCustomAreas(updatedAreas);
-                        
+
                         // Update selected area for edit if it's still open
                         if (selectedAreaForEdit && selectedAreaForEdit.id === selectedAreaForEdit.id) {
                             const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
                             setSelectedAreaForEdit(updatedSelectedArea);
                         }
-                        
+
                         // Exit trajectory mode and reset only after successful analysis
                         setIsTrajectoryMode(false);
                         setTrajectoryStart(null);
@@ -1562,10 +1562,10 @@ export const SampleViewer = ({
             .finally(() => {
                 // Clear loading state and remove from analyzing trajectories
                 setIsTrajectoryAnalyzing(false);
-                setAnalyzingTrajectories(prev => prev.filter(t => 
-                    !(t.areaId === selectedAreaForEdit.id && 
-                      t.start === trajectoryStart && 
-                      t.end === trajectoryEnd)
+                setAnalyzingTrajectories(prev => prev.filter(t =>
+                    !(t.areaId === selectedAreaForEdit.id &&
+                        t.start === trajectoryStart &&
+                        t.end === trajectoryEnd)
                 ));
             });
     }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, customAreas, setCustomAreas]);
@@ -2474,22 +2474,22 @@ export const SampleViewer = ({
                     const offset = sampleOffsets[area.sampleId] || [0, 0];
                     const startPos = [trajectory.start[0] + offset[0], trajectory.start[1] + offset[1]];
                     const endPos = [trajectory.end[0] + offset[0], trajectory.end[1] + offset[1]];
-                    
+
                     // Calculate arrow direction
                     const dx = endPos[0] - startPos[0];
                     const dy = endPos[1] - startPos[1];
                     const length = Math.sqrt(dx * dx + dy * dy);
-                    
+
                     if (length > 0) {
                         const dirX = dx / length;
                         const dirY = dy / length;
-                        
+
                         // Arrow head parameters
                         const arrowLength = 50;
                         const arrowWidth = 15;
                         const perpX = -dirY;
                         const perpY = dirX;
-                        
+
                         // Arrow head points
                         const arrowTip = endPos;
                         const arrowBase1 = [
@@ -2500,7 +2500,7 @@ export const SampleViewer = ({
                             endPos[0] - dirX * arrowLength + perpX * arrowWidth,
                             endPos[1] - dirY * arrowLength + perpY * arrowWidth
                         ];
-                        
+
                         // Trajectory line (with hover for coverage display)
                         layers.push(new LineLayer({
                             id: `existing-trajectory-line-${trajectory.id}`,
@@ -2520,11 +2520,11 @@ export const SampleViewer = ({
                             widthUnits: 'pixels',
                             pickable: true
                         }));
-                        
+
                         // Arrow head (with hover for coverage display)
                         layers.push(new PolygonLayer({
                             id: `existing-trajectory-arrow-${trajectory.id}`,
-                            data: [{ 
+                            data: [{
                                 polygon: [arrowTip, arrowBase1, arrowBase2],
                                 trajectory: trajectory,
                                 trajectoryId: trajectory.id,
@@ -2551,22 +2551,22 @@ export const SampleViewer = ({
                 const offset = sampleOffsets[area.sampleId] || [0, 0];
                 const startPos = [analyzingTrajectory.start[0] + offset[0], analyzingTrajectory.start[1] + offset[1]];
                 const endPos = [analyzingTrajectory.end[0] + offset[0], analyzingTrajectory.end[1] + offset[1]];
-                
+
                 // Calculate arrow direction
                 const dx = endPos[0] - startPos[0];
                 const dy = endPos[1] - startPos[1];
                 const length = Math.sqrt(dx * dx + dy * dy);
-                
+
                 if (length > 0) {
                     const dirX = dx / length;
                     const dirY = dy / length;
-                    
+
                     // Arrow head parameters
                     const arrowLength = 50;
                     const arrowWidth = 15;
                     const perpX = -dirY;
                     const perpY = dirX;
-                    
+
                     // Arrow head points
                     const arrowTip = endPos;
                     const arrowBase1 = [
@@ -2577,7 +2577,7 @@ export const SampleViewer = ({
                         endPos[0] - dirX * arrowLength + perpX * arrowWidth,
                         endPos[1] - dirY * arrowLength + perpY * arrowWidth
                     ];
-                    
+
                     // Trajectory line (red for analyzing)
                     layers.push(new LineLayer({
                         id: `analyzing-trajectory-line-${analyzingTrajectory.areaId}`,
@@ -2592,11 +2592,11 @@ export const SampleViewer = ({
                         widthUnits: 'pixels',
                         pickable: false
                     }));
-                    
+
                     // Arrow head (red for analyzing)
                     layers.push(new PolygonLayer({
                         id: `analyzing-trajectory-arrow-${analyzingTrajectory.areaId}`,
-                        data: [{ 
+                        data: [{
                             polygon: [arrowTip, arrowBase1, arrowBase2]
                         }],
                         getPolygon: d => d.polygon,
@@ -2634,20 +2634,20 @@ export const SampleViewer = ({
                 const dx = trajectoryEnd[0] - trajectoryStart[0];
                 const dy = trajectoryEnd[1] - trajectoryStart[1];
                 const length = Math.sqrt(dx * dx + dy * dy);
-                
+
                 if (length > 0) {
                     // Normalize direction vector
                     const dirX = dx / length;
                     const dirY = dy / length;
-                    
+
                     // Perpendicular vector
                     const perpX = -dirY;
                     const perpY = dirX;
-                    
+
                     // Arrow parameters
                     const arrowLength = 100; // Length of arrow head
                     const arrowWidth = 30; // Half width of arrow head
-                    
+
                     // Calculate arrow head points
                     const arrowTip = trajectoryEnd;
                     const arrowBase1 = [
@@ -2658,7 +2658,7 @@ export const SampleViewer = ({
                         trajectoryEnd[0] - dirX * arrowLength + perpX * arrowWidth,
                         trajectoryEnd[1] - dirY * arrowLength + perpY * arrowWidth
                     ];
-                    
+
                     // Arrow head as a polygon
                     layers.push(new PolygonLayer({
                         id: 'trajectory-arrow-head',
@@ -2670,13 +2670,13 @@ export const SampleViewer = ({
                         lineWidthUnits: 'pixels',
                         pickable: false,
                     }));
-                    
+
                     // Adjust the main line to stop before the arrow head
                     const lineEnd = [
                         trajectoryEnd[0] - dirX * arrowLength * 0.3,
                         trajectoryEnd[1] - dirY * arrowLength * 0.3
                     ];
-                    
+
                     // Arrow line
                     layers.push(new LineLayer({
                         id: 'trajectory-arrow-line',
@@ -2717,7 +2717,7 @@ export const SampleViewer = ({
                 hoveredTrajectory.trajectory.width,
                 hoveredTrajectory.area.points
             );
-            
+
             if (coverageArea) {
                 layers.push(new PolygonLayer({
                     id: 'hovered-trajectory-coverage-area',
@@ -4215,8 +4215,23 @@ export const SampleViewer = ({
                                 </div>
                             </div>
 
-                            {/* Neighbors Input */}
                             <div style={{ marginBottom: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        variant="outlined"
+                                        color='blue'
+                                        onClick={handleAreaEditSave}
+                                        style={{ flex: 1 }}
+                                    >
+                                        Save
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Neighbors Input */}
+                            <div style={{ marginBottom: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <label style={{
                                         fontSize: 12,
@@ -4375,11 +4390,11 @@ export const SampleViewer = ({
 
                                 {/* Arrow Width Slider - hide by default, show only on hover when trajectory exists */}
                                 <div style={{ marginBottom: 8 }}>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        gap: 3, 
-                                        fontSize: 12, 
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 3,
+                                        fontSize: 12,
                                         color: '#595959',
                                         opacity: (trajectoryStart && trajectoryEnd) ? 1 : 0.5
                                     }}>
@@ -4390,7 +4405,7 @@ export const SampleViewer = ({
                                         max={maxArrowWidth}
                                         value={arrowWidth}
                                         onChange={handleArrowWidthChange}
-                                        style={{ 
+                                        style={{
                                             margin: "5px 0 10px 0",
                                             opacity: (trajectoryStart && trajectoryEnd) ? 1 : 0.5
                                         }}
@@ -4399,18 +4414,18 @@ export const SampleViewer = ({
                                 </div>
 
                                 {/* Analyze Trajectory Button */}
-                                    <Button
-                                        size="small"
-                                        color="geekblue"
-                                        variant="outlined"
-                                        onClick={handleAnalyzeTrajectory}
-                                        disabled={!trajectoryStart || !trajectoryEnd || !trajectoryName.trim() || isTrajectoryAnalyzing}
-                                        loading={isTrajectoryAnalyzing}
-                                        style={{ width: '100%' }}
-                                    >
-                                        {isTrajectoryAnalyzing ? 'Analyzing...' : 'Analyze Trajectory'}
-                                    </Button>
-                                
+                                <Button
+                                    size="small"
+                                    color="geekblue"
+                                    variant="outlined"
+                                    onClick={handleAnalyzeTrajectory}
+                                    disabled={!trajectoryStart || !trajectoryEnd || !trajectoryName.trim() || isTrajectoryAnalyzing}
+                                    loading={isTrajectoryAnalyzing}
+                                    style={{ width: '100%' }}
+                                >
+                                    {isTrajectoryAnalyzing ? 'Analyzing...' : 'Analyze Trajectory'}
+                                </Button>
+
                                 {/* Existing Trajectories List */}
                                 {selectedAreaForEdit?.trajectories && selectedAreaForEdit.trajectories.length > 0 && (
                                     <div style={{ marginTop: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
@@ -4426,8 +4441,8 @@ export const SampleViewer = ({
                                         </label>
                                         <div style={{ maxHeight: 100, overflowY: 'auto' }}>
                                             {selectedAreaForEdit.trajectories.map((trajectory, index) => (
-                                                <div 
-                                                    key={trajectory.id} 
+                                                <div
+                                                    key={trajectory.id}
                                                     style={{
                                                         fontSize: 11,
                                                         padding: '4px 8px',
@@ -4461,20 +4476,12 @@ export const SampleViewer = ({
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
                                 <Button
                                     size="small"
-                                    color="default"
+                                    color="danger"
                                     variant="outlined"
                                     onClick={handleAreaDelete}
                                     style={{ flex: 1 }}
                                 >
                                     Delete
-                                </Button>
-                                <Button
-                                    size="small"
-                                    type="primary"
-                                    onClick={handleAreaEditSave}
-                                    style={{ flex: 1 }}
-                                >
-                                    Save
                                 </Button>
                             </div>
                         </div>
