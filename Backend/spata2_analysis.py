@@ -5,7 +5,7 @@ import tempfile
 import time
 
 
-def run_spata2_analysis(base_sample_id, barcodes_data, start_16um_lowres, end_16um_lowres, arrow_width_16um_pixels):
+def run_spata2_analysis(base_sample_id, barcodes_data, start_16um_lowres, end_16um_lowres, arrow_width_16um_pixels, trajectory_name):
     """
     Run SPATA2 analysis using R subprocess
     
@@ -15,14 +15,15 @@ def run_spata2_analysis(base_sample_id, barcodes_data, start_16um_lowres, end_16
     - start_16um_lowres: [x, y] start coordinates in 16um lowres space
     - end_16um_lowres: [x, y] end coordinates in 16um lowres space
     - arrow_width_16um_pixels: Arrow width in 16um pixels
+    - trajectory_name: User-defined name for the trajectory
     
     Returns:
     - Dictionary containing trajectory data, significant genes, and trajectory ID
     """
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Create unique trajectory ID
-            trajectory_id = f"{base_sample_id}_{int(time.time())}"
+            # Use the provided trajectory name as the trajectory ID
+            trajectory_id = trajectory_name
             
             # Determine which RDS file to use based on sample ID
             example_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")

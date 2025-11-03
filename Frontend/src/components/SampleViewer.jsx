@@ -104,6 +104,7 @@ export const SampleViewer = ({
     const [trajectoryClickCount, setTrajectoryClickCount] = useState(0);
     const [arrowCoverageArea, setArrowCoverageArea] = useState(null);
     const [maxArrowWidth, setMaxArrowWidth] = useState(50);
+    const [trajectoryName, setTrajectoryName] = useState('');
 
     // Minimap state
     const [minimapVisible, setMinimapVisible] = useState(true);
@@ -1186,17 +1187,28 @@ export const SampleViewer = ({
         setTrajectoryClickCount(0);
         setArrowCoverageArea(null);
         setMaxArrowWidth(50);
+        setTrajectoryName('');
     };
 
     // Handle trajectory mode toggle
     const handleTrajectoryModeToggle = () => {
-        setIsTrajectoryMode(!isTrajectoryMode);
+        const newIsTrajectoryMode = !isTrajectoryMode;
+        setIsTrajectoryMode(newIsTrajectoryMode);
         setTrajectoryPoints([]);
         setTrajectoryStart(null);
         setTrajectoryEnd(null);
         setTrajectoryClickCount(0);
         setArrowCoverageArea(null);
         setMaxArrowWidth(50);
+        
+        // Generate default trajectory name when entering trajectory mode
+        if (newIsTrajectoryMode && selectedAreaForEdit) {
+            const existingTrajectories = selectedAreaForEdit.trajectories || [];
+            const trajectoryCount = existingTrajectories.length + 1;
+            setTrajectoryName(`Custom Trajectory ${trajectoryCount}`);
+        } else if (!newIsTrajectoryMode) {
+            setTrajectoryName('');
+        }
     };
 
     // Check if a point is inside a polygon using ray casting algorithm
@@ -1408,7 +1420,7 @@ export const SampleViewer = ({
 
     // Handle trajectory analysis
     const handleAnalyzeTrajectory = useCallback(() => {
-        if (!trajectoryStart || !trajectoryEnd || !selectedAreaForEdit) {
+        if (!trajectoryStart || !trajectoryEnd || !selectedAreaForEdit || !trajectoryName.trim()) {
             console.error('Missing trajectory data for analysis');
             return;
         }
@@ -1419,7 +1431,8 @@ export const SampleViewer = ({
             endCoordinates: trajectoryEnd,
             arrowWidthPixels: arrowWidth,
             drawingPoints: selectedAreaForEdit.points,
-            areaName: selectedAreaForEdit.name
+            areaName: selectedAreaForEdit.name,
+            trajectoryName: trajectoryName.trim()
         };
 
         fetch('/api/analyze_trajectory', {
@@ -1431,6 +1444,41 @@ export const SampleViewer = ({
             .then(result => {
                 if (result.status === 'success') {
                     console.log('Trajectory analysis result:', result);
+                    
+                    // Store trajectory in the area
+                    const newTrajectory = {
+                        id: `trajectory_${Date.now()}`,
+                        name: trajectoryName.trim(),
+                        start: trajectoryStart,
+                        end: trajectoryEnd,
+                        width: arrowWidth,
+                        analysisResult: result
+                    };
+                    
+                    // Update the area with the new trajectory
+                    const updatedAreas = customAreas.map(area => {
+                        if (area.id === selectedAreaForEdit.id) {
+                            const trajectories = area.trajectories || [];
+                            return {
+                                ...area,
+                                trajectories: [...trajectories, newTrajectory]
+                            };
+                        }
+                        return area;
+                    });
+                    
+                    setCustomAreas(updatedAreas);
+                    
+                    // Update selected area for edit
+                    const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
+                    setSelectedAreaForEdit(updatedSelectedArea);
+                    
+                    // Exit trajectory mode and reset
+                    setIsTrajectoryMode(false);
+                    setTrajectoryStart(null);
+                    setTrajectoryEnd(null);
+                    setTrajectoryName('');
+                    setArrowCoverageArea(null);
                 } else {
                     console.error('Analysis failed:', result.message);
                 }
@@ -1439,7 +1487,7 @@ export const SampleViewer = ({
                 console.error('Error analyzing trajectory:', error);
                 alert(`Error analyzing trajectory: ${error.message}`);
             });
-    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit]);
+    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, customAreas, setCustomAreas]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops
     const getSampleAtCoordinate = useCallback((x, y) => {
@@ -2337,6 +2385,71 @@ export const SampleViewer = ({
                 }
             }
         }
+
+        // Existing trajectories visualization
+        customAreas.forEach(area => {
+            if (area.trajectories && area.trajectories.length > 0) {
+                area.trajectories.forEach(trajectory => {
+                    const offset = sampleOffsets[area.sampleId] || [0, 0];
+                    const startPos = [trajectory.start[0] + offset[0], trajectory.start[1] + offset[1]];
+                    const endPos = [trajectory.end[0] + offset[0], trajectory.end[1] + offset[1]];
+                    
+                    // Calculate arrow direction
+                    const dx = endPos[0] - startPos[0];
+                    const dy = endPos[1] - startPos[1];
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (length > 0) {
+                        const dirX = dx / length;
+                        const dirY = dy / length;
+                        
+                        // Arrow head parameters
+                        const arrowLength = 50;
+                        const arrowWidth = 15;
+                        const perpX = -dirY;
+                        const perpY = dirX;
+                        
+                        // Arrow head points
+                        const arrowTip = endPos;
+                        const arrowBase1 = [
+                            endPos[0] - dirX * arrowLength - perpX * arrowWidth,
+                            endPos[1] - dirY * arrowLength - perpY * arrowWidth
+                        ];
+                        const arrowBase2 = [
+                            endPos[0] - dirX * arrowLength + perpX * arrowWidth,
+                            endPos[1] - dirY * arrowLength + perpY * arrowWidth
+                        ];
+                        
+                        // Trajectory line (always visible)
+                        layers.push(new LineLayer({
+                            id: `existing-trajectory-line-${trajectory.id}`,
+                            data: [{
+                                sourcePosition: startPos,
+                                targetPosition: [endPos[0] - dirX * arrowLength * 0.3, endPos[1] - dirY * arrowLength * 0.3]
+                            }],
+                            getSourcePosition: d => d.sourcePosition,
+                            getTargetPosition: d => d.targetPosition,
+                            getColor: [0, 150, 255, 200], // Blue for existing trajectories
+                            getWidth: 2,
+                            widthUnits: 'pixels',
+                            pickable: false,
+                        }));
+                        
+                        // Arrow head (always visible)
+                        layers.push(new PolygonLayer({
+                            id: `existing-trajectory-arrow-${trajectory.id}`,
+                            data: [{ polygon: [arrowTip, arrowBase1, arrowBase2] }],
+                            getPolygon: d => d.polygon,
+                            getFillColor: [0, 150, 255, 200],
+                            getLineColor: [0, 100, 200, 255],
+                            getLineWidth: 1,
+                            lineWidthUnits: 'pixels',
+                            pickable: false,
+                        }));
+                    }
+                });
+            }
+        });
 
         // Trajectory visualization layers
         if (isTrajectoryMode && selectedAreaForEdit) {
@@ -4016,6 +4129,29 @@ export const SampleViewer = ({
                                     {isTrajectoryMode ? 'Cancel Trajectory' : 'Add Trajectory'}
                                 </Button>
 
+                                {/* Trajectory Name Input - shown when in trajectory mode */}
+                                {isTrajectoryMode && (
+                                    <div style={{ marginBottom: 8 }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: 4,
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            color: '#595959',
+                                            textAlign: 'left'
+                                        }}>
+                                            Trajectory Name:
+                                        </label>
+                                        <Input
+                                            value={trajectoryName}
+                                            onChange={(e) => setTrajectoryName(e.target.value)}
+                                            placeholder="Enter trajectory name"
+                                            maxLength={50}
+                                            size="small"
+                                        />
+                                    </div>
+                                )}
+
                                 {/* Instructions when in trajectory mode */}
                                 {isTrajectoryMode && (
                                     <div style={{
@@ -4030,9 +4166,16 @@ export const SampleViewer = ({
                                     </div>
                                 )}
 
-                                {/* Arrow Width Slider */}
+                                {/* Arrow Width Slider - hide by default, show only on hover when trajectory exists */}
                                 <div style={{ marginBottom: 8 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#595959' }}>
+                                    <div style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 3, 
+                                        fontSize: 12, 
+                                        color: '#595959',
+                                        opacity: (trajectoryStart && trajectoryEnd) ? 1 : 0.5
+                                    }}>
                                         <span style={{ fontWeight: 500 }}>Arrow Width:</span> {arrowWidth}px
                                     </div>
                                     <Slider
@@ -4040,7 +4183,10 @@ export const SampleViewer = ({
                                         max={maxArrowWidth}
                                         value={arrowWidth}
                                         onChange={handleArrowWidthChange}
-                                        style={{ margin: "5px 0 10px 0" }}
+                                        style={{ 
+                                            margin: "5px 0 10px 0",
+                                            opacity: (trajectoryStart && trajectoryEnd) ? 1 : 0.5
+                                        }}
                                         disabled={!isTrajectoryMode || !trajectoryStart || !trajectoryEnd}
                                     />
                                 </div>
@@ -4051,11 +4197,46 @@ export const SampleViewer = ({
                                         color="geekblue"
                                         variant="outlined"
                                         onClick={handleAnalyzeTrajectory}
-                                        disabled={trajectoryStart && trajectoryEnd ? false : true}
+                                        disabled={!trajectoryStart || !trajectoryEnd || !trajectoryName.trim()}
                                         style={{ width: '100%' }}
                                     >
                                         Analyze Trajectory
                                     </Button>
+                                
+                                {/* Existing Trajectories List */}
+                                {selectedAreaForEdit?.trajectories && selectedAreaForEdit.trajectories.length > 0 && (
+                                    <div style={{ marginTop: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
+                                        <label style={{
+                                            display: 'block',
+                                            marginBottom: 6,
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            color: '#595959',
+                                            textAlign: 'left'
+                                        }}>
+                                            Existing Trajectories:
+                                        </label>
+                                        <div style={{ maxHeight: 100, overflowY: 'auto' }}>
+                                            {selectedAreaForEdit.trajectories.map((trajectory, index) => (
+                                                <div 
+                                                    key={trajectory.id} 
+                                                    style={{
+                                                        fontSize: 11,
+                                                        padding: '4px 8px',
+                                                        marginBottom: 4,
+                                                        backgroundColor: '#f9f9f9',
+                                                        borderRadius: 4,
+                                                        border: '1px solid #e8e8e8'
+                                                    }}
+                                                >
+                                                    <div style={{ fontWeight: 500, color: '#262626' }}>
+                                                        {trajectory.name}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Action Buttons */}

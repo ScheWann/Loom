@@ -1547,7 +1547,7 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
         raise ValueError(f"Error converting coordinates: {str(e)}")
 
 
-def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_width_pixels, drawing_points):
+def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_width_pixels, drawing_points, trajectory_name):
     """
     Analyze trajectory using multi-scale matching method from Jupyter notebook.
     Maps coordinates from processed image to full-resolution, finds 16um barcodes,
@@ -1559,6 +1559,7 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
     - end_coordinates: [x, y] end coordinates in processed image space
     - arrow_width_pixels: Width of the trajectory arrow in pixels
     - drawing_points: List of [x, y] points defining the ROI polygon
+    - trajectory_name: User-defined name for the trajectory
 
     Returns:
     - Dictionary containing analysis results with mapped coordinates, 16um barcodes, and trajectory data
@@ -1686,7 +1687,8 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
             bc16.to_dict('records') if len(bc16) > 0 else [],
             start_16um_lowres, 
             end_16um_lowres, 
-            arrow_width_16um_pixels
+            arrow_width_16um_pixels,
+            trajectory_name
         )
         
         result = {

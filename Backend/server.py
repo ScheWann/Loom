@@ -438,12 +438,13 @@ def analyze_trajectory_route():
     end_coordinates = data.get("endCoordinates")
     arrow_width_pixels = data.get("arrowWidthPixels")
     drawing_points = data.get("drawingPoints")
+    trajectory_name = data.get("trajectoryName")
     
     # Validate required parameters
-    if not all([sample_id, start_coordinates, end_coordinates, drawing_points]):
+    if not all([sample_id, start_coordinates, end_coordinates, drawing_points, trajectory_name]):
         return jsonify({
             "status": "error",
-            "message": "Missing required parameters: sampleId, startCoordinates, endCoordinates, drawingPoints"
+            "message": "Missing required parameters: sampleId, startCoordinates, endCoordinates, drawingPoints, trajectoryName"
         }), 400
     
     if arrow_width_pixels is None:
@@ -455,7 +456,8 @@ def analyze_trajectory_route():
             start_coordinates=start_coordinates,
             end_coordinates=end_coordinates,
             arrow_width_pixels=arrow_width_pixels,
-            drawing_points=drawing_points
+            drawing_points=drawing_points,
+            trajectory_name=trajectory_name
         )
         return jsonify(result)
     except Exception as e:
