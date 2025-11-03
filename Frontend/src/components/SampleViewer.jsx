@@ -2346,8 +2346,8 @@ export const SampleViewer = ({
                     id: 'trajectory-start-point',
                     data: [{ position: trajectoryStart }],
                     getPosition: d => d.position,
-                    getRadius: 8,
-                    getFillColor: [0, 255, 0, 200], // Green for start
+                    getRadius: 3,
+                    getFillColor: [255, 0, 0, 200], // Green for start
                     getLineColor: [0, 200, 0, 255],
                     getLineWidth: 2,
                     radiusUnits: 'pixels',
@@ -2358,34 +2358,68 @@ export const SampleViewer = ({
 
             // Show trajectory end point and arrow line
             if (trajectoryStart && trajectoryEnd) {
-                // End point
-                layers.push(new ScatterplotLayer({
-                    id: 'trajectory-end-point',
-                    data: [{ position: trajectoryEnd }],
-                    getPosition: d => d.position,
-                    getRadius: 8,
-                    getFillColor: [255, 0, 0, 200], // Red for end
-                    getLineColor: [200, 0, 0, 255],
-                    getLineWidth: 2,
-                    radiusUnits: 'pixels',
-                    lineWidthUnits: 'pixels',
-                    pickable: false,
-                }));
-
-                // Arrow line
-                layers.push(new LineLayer({
-                    id: 'trajectory-arrow-line',
-                    data: [{
-                        sourcePosition: trajectoryStart,
-                        targetPosition: trajectoryEnd
-                    }],
-                    getSourcePosition: d => d.sourcePosition,
-                    getTargetPosition: d => d.targetPosition,
-                    getColor: [0, 100, 255, 200], // Blue for arrow
-                    getWidth: 3,
-                    widthUnits: 'pixels',
-                    pickable: false,
-                }));
+                // Calculate arrow direction and perpendicular vectors
+                const dx = trajectoryEnd[0] - trajectoryStart[0];
+                const dy = trajectoryEnd[1] - trajectoryStart[1];
+                const length = Math.sqrt(dx * dx + dy * dy);
+                
+                if (length > 0) {
+                    // Normalize direction vector
+                    const dirX = dx / length;
+                    const dirY = dy / length;
+                    
+                    // Perpendicular vector
+                    const perpX = -dirY;
+                    const perpY = dirX;
+                    
+                    // Arrow parameters
+                    const arrowLength = 100; // Length of arrow head
+                    const arrowWidth = 30; // Half width of arrow head
+                    
+                    // Calculate arrow head points
+                    const arrowTip = trajectoryEnd;
+                    const arrowBase1 = [
+                        trajectoryEnd[0] - dirX * arrowLength - perpX * arrowWidth,
+                        trajectoryEnd[1] - dirY * arrowLength - perpY * arrowWidth
+                    ];
+                    const arrowBase2 = [
+                        trajectoryEnd[0] - dirX * arrowLength + perpX * arrowWidth,
+                        trajectoryEnd[1] - dirY * arrowLength + perpY * arrowWidth
+                    ];
+                    
+                    // Arrow head as a polygon
+                    layers.push(new PolygonLayer({
+                        id: 'trajectory-arrow-head',
+                        data: [{ polygon: [arrowTip, arrowBase1, arrowBase2] }],
+                        getPolygon: d => d.polygon,
+                        getFillColor: [255, 0, 0, 200], // Red for arrow head
+                        getLineColor: [200, 0, 0, 255],
+                        getLineWidth: 2,
+                        lineWidthUnits: 'pixels',
+                        pickable: false,
+                    }));
+                    
+                    // Adjust the main line to stop before the arrow head
+                    const lineEnd = [
+                        trajectoryEnd[0] - dirX * arrowLength * 0.3,
+                        trajectoryEnd[1] - dirY * arrowLength * 0.3
+                    ];
+                    
+                    // Arrow line
+                    layers.push(new LineLayer({
+                        id: 'trajectory-arrow-line',
+                        data: [{
+                            sourcePosition: trajectoryStart,
+                            targetPosition: lineEnd
+                        }],
+                        getSourcePosition: d => d.sourcePosition,
+                        getTargetPosition: d => d.targetPosition,
+                        getColor: [255, 0, 0, 200], // Blue for arrow
+                        getWidth: 3,
+                        widthUnits: 'pixels',
+                        pickable: false,
+                    }));
+                }
             }
 
             // Show arrow coverage area
