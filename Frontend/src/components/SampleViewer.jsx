@@ -105,6 +105,7 @@ export const SampleViewer = ({
     const [arrowCoverageArea, setArrowCoverageArea] = useState(null);
     const [maxArrowWidth, setMaxArrowWidth] = useState(50);
     const [trajectoryName, setTrajectoryName] = useState('');
+    const [hoveredTrajectory, setHoveredTrajectory] = useState(null); // Track hovered trajectory for coverage display
 
     // Minimap state
     const [minimapVisible, setMinimapVisible] = useState(true);
@@ -1311,6 +1312,43 @@ export const SampleViewer = ({
         return Math.max(10, left);
     }, [selectedAreaForEdit, canRectangleFitInArea]);
 
+    // Calculate arrow coverage area for saved trajectories (similar to calculateArrowCoverageArea but for any area)
+    const calculateSavedTrajectoryArrowCoverageArea = useCallback((start, end, width, areaPoints) => {
+        if (!start || !end || !areaPoints) return null;
+
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const length = Math.sqrt(dx * dx + dy * dy);
+
+        if (length === 0) return null;
+
+        // Normalize the direction vector
+        const nx = dx / length;
+        const ny = dy / length;
+
+        // Perpendicular vector
+        const px = -ny;
+        const py = nx;
+
+        const leftOffset = width / 2;
+        const rightOffset = width / 2;
+
+        // Create the coverage area polygon
+        const coveragePoints = [
+            [start[0] + leftOffset * px, start[1] + leftOffset * py],
+            [end[0] + leftOffset * px, end[1] + leftOffset * py],
+            [end[0] - rightOffset * px, end[1] - rightOffset * py],
+            [start[0] - rightOffset * px, start[1] - rightOffset * py]
+        ];
+
+        return {
+            points: coveragePoints,
+            actualLeftWidth: leftOffset,
+            actualRightWidth: rightOffset,
+            totalWidth: leftOffset + rightOffset
+        };
+    }, []);
+
     // Calculate arrow coverage area based on start, end points and width
     const calculateArrowCoverageArea = useCallback((start, end, width) => {
         if (!start || !end || !selectedAreaForEdit) return null;
@@ -1440,47 +1478,60 @@ export const SampleViewer = ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(trajectoryData)
         })
-            .then(response => response.json())
-            .then(result => {
-                if (result.status === 'success') {
-                    console.log('Trajectory analysis result:', result);
-                    
-                    // Store trajectory in the area
-                    const newTrajectory = {
-                        id: `trajectory_${Date.now()}`,
-                        name: trajectoryName.trim(),
-                        start: trajectoryStart,
-                        end: trajectoryEnd,
-                        width: arrowWidth,
-                        analysisResult: result
-                    };
-                    
-                    // Update the area with the new trajectory
-                    const updatedAreas = customAreas.map(area => {
-                        if (area.id === selectedAreaForEdit.id) {
-                            const trajectories = area.trajectories || [];
-                            return {
-                                ...area,
-                                trajectories: [...trajectories, newTrajectory]
-                            };
-                        }
-                        return area;
-                    });
-                    
-                    setCustomAreas(updatedAreas);
-                    
-                    // Update selected area for edit
-                    const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
-                    setSelectedAreaForEdit(updatedSelectedArea);
-                    
-                    // Exit trajectory mode and reset
-                    setIsTrajectoryMode(false);
-                    setTrajectoryStart(null);
-                    setTrajectoryEnd(null);
-                    setTrajectoryName('');
-                    setArrowCoverageArea(null);
-                } else {
-                    console.error('Analysis failed:', result.message);
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text(); // Get as text first to handle potential JSON errors
+            })
+            .then(text => {
+                try {
+                    const result = JSON.parse(text);
+                    if (result.status === 'success') {
+                        console.log('Trajectory analysis result:', result);
+                        
+                        // Store trajectory in the area
+                        const newTrajectory = {
+                            id: `trajectory_${Date.now()}`,
+                            name: trajectoryName.trim(),
+                            start: trajectoryStart,
+                            end: trajectoryEnd,
+                            width: arrowWidth,
+                            analysisResult: result
+                        };
+                        
+                        // Update the area with the new trajectory
+                        const updatedAreas = customAreas.map(area => {
+                            if (area.id === selectedAreaForEdit.id) {
+                                const trajectories = area.trajectories || [];
+                                return {
+                                    ...area,
+                                    trajectories: [...trajectories, newTrajectory]
+                                };
+                            }
+                            return area;
+                        });
+                        
+                        setCustomAreas(updatedAreas);
+                        
+                        // Update selected area for edit
+                        const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
+                        setSelectedAreaForEdit(updatedSelectedArea);
+                        
+                        // Exit trajectory mode and reset
+                        setIsTrajectoryMode(false);
+                        setTrajectoryStart(null);
+                        setTrajectoryEnd(null);
+                        setTrajectoryName('');
+                        setArrowCoverageArea(null);
+                    } else {
+                        console.error('Analysis failed:', result.message);
+                        alert(`Analysis failed: ${result.message || 'Unknown error'}`);
+                    }
+                } catch (jsonError) {
+                    console.error('Invalid JSON response:', text);
+                    console.error('JSON Parse Error:', jsonError);
+                    alert(`Server returned invalid response. Please check the backend logs.`);
                 }
             })
             .catch(error => {
@@ -2420,31 +2471,43 @@ export const SampleViewer = ({
                             endPos[1] - dirY * arrowLength + perpY * arrowWidth
                         ];
                         
-                        // Trajectory line (always visible)
+                        // Trajectory line (with hover for coverage display)
                         layers.push(new LineLayer({
                             id: `existing-trajectory-line-${trajectory.id}`,
                             data: [{
                                 sourcePosition: startPos,
-                                targetPosition: [endPos[0] - dirX * arrowLength * 0.3, endPos[1] - dirY * arrowLength * 0.3]
+                                targetPosition: [endPos[0] - dirX * arrowLength * 0.3, endPos[1] - dirY * arrowLength * 0.3],
+                                trajectory: trajectory,
+                                trajectoryId: trajectory.id,
+                                area: area,
+                                startPos: startPos,
+                                endPos: endPos
                             }],
                             getSourcePosition: d => d.sourcePosition,
                             getTargetPosition: d => d.targetPosition,
                             getColor: [0, 150, 255, 200], // Blue for existing trajectories
-                            getWidth: 2,
+                            getWidth: 3,
                             widthUnits: 'pixels',
-                            pickable: false,
+                            pickable: true
                         }));
                         
-                        // Arrow head (always visible)
+                        // Arrow head (with hover for coverage display)
                         layers.push(new PolygonLayer({
                             id: `existing-trajectory-arrow-${trajectory.id}`,
-                            data: [{ polygon: [arrowTip, arrowBase1, arrowBase2] }],
+                            data: [{ 
+                                polygon: [arrowTip, arrowBase1, arrowBase2],
+                                trajectory: trajectory,
+                                trajectoryId: trajectory.id,
+                                area: area,
+                                startPos: startPos,
+                                endPos: endPos
+                            }],
                             getPolygon: d => d.polygon,
                             getFillColor: [0, 150, 255, 200],
                             getLineColor: [0, 100, 200, 255],
                             getLineWidth: 1,
                             lineWidthUnits: 'pixels',
-                            pickable: false,
+                            pickable: true
                         }));
                     }
                 });
@@ -2550,8 +2613,31 @@ export const SampleViewer = ({
             }
         }
 
+        // Show hovered trajectory coverage area
+        if (hoveredTrajectory && hoveredTrajectory.trajectory && hoveredTrajectory.startPos && hoveredTrajectory.endPos) {
+            const coverageArea = calculateSavedTrajectoryArrowCoverageArea(
+                hoveredTrajectory.startPos,
+                hoveredTrajectory.endPos,
+                hoveredTrajectory.trajectory.width,
+                hoveredTrajectory.area.points
+            );
+            
+            if (coverageArea) {
+                layers.push(new PolygonLayer({
+                    id: 'hovered-trajectory-coverage-area',
+                    data: [{ polygon: coverageArea.points }],
+                    getPolygon: d => d.polygon,
+                    getFillColor: [255, 255, 0, 100], // Semi-transparent yellow like in trajectory mode
+                    getLineColor: [255, 200, 0, 200],
+                    getLineWidth: 2,
+                    lineWidthUnits: 'pixels',
+                    pickable: false,
+                }));
+            }
+        }
+
         return layers;
-    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea]);
+    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea, hoveredTrajectory, calculateSavedTrajectoryArrowCoverageArea]);
 
     // Combine all layers
     const layers = useMemo(() => {
@@ -2561,6 +2647,7 @@ export const SampleViewer = ({
         const areaLayers = generateCustomAreaLayers();
         const guidelineLayers = generateTrajectoryGuidelineLayer();
         return [...imgLayers, ...areaLayers, ...cellLayers, ...guidelineLayers];
+        // return [...imgLayers, ...areaLayers, ...guidelineLayers, ...guidelineLayers];
     }, [generateImageLayers, generateCellLayers, generateCustomAreaLayers, generateTrajectoryGuidelineLayer]);
 
     // Stable viewState wrapper to avoid creating a new object on every render
@@ -3228,6 +3315,29 @@ export const SampleViewer = ({
                     onViewStateChange={handleViewStateChange}
                     onClick={handleMapClick}
                     onHover={(info) => {
+                        // Handle trajectory hover for coverage area display
+                        if (info && info.object && info.layer && info.layer.id) {
+                            const layerId = info.layer.id;
+                            if (layerId.includes('existing-trajectory-line-') || layerId.includes('existing-trajectory-arrow-')) {
+                                if (info.picked && info.object.trajectory) {
+                                    setHoveredTrajectory({
+                                        trajectory: info.object.trajectory,
+                                        area: info.object.area,
+                                        startPos: info.object.startPos,
+                                        endPos: info.object.endPos
+                                    });
+                                } else {
+                                    setHoveredTrajectory(null);
+                                }
+                            } else {
+                                // Clear trajectory hover when hovering over other elements
+                                setHoveredTrajectory(null);
+                            }
+                        } else {
+                            // Clear trajectory hover when not hovering over anything
+                            setHoveredTrajectory(null);
+                        }
+
                         // Preserve existing mouse-move behavior
                         handleMouseMove(info);
 
