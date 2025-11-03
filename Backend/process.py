@@ -27,6 +27,9 @@ PROCESSED_ADATA_CACHE = {}
 # Global cache for Kosara calculations (memoization for expensive fsolve calls)
 KOSARA_CALCULATION_CACHE = {}
 
+# Global cache for SPATA2 trajectory analysis results
+TRAJECTORY_ANALYSIS_CACHE = {}
+
 # Set random seed for reproducibility
 SEED = 42
 random.seed(SEED)
@@ -122,6 +125,166 @@ def clear_kosara_cache():
     """Clear the Kosara calculation cache to free memory"""
     global KOSARA_CALCULATION_CACHE
     KOSARA_CALCULATION_CACHE.clear()
+
+
+def get_stored_trajectory_analyses(sample_id):
+    """
+    Get all stored trajectory analyses for a given sample.
+    Returns a dictionary with region and trajectory information.
+    """
+    base_sample_id = sample_id.rsplit("_", 1)[0] if "_" in sample_id else sample_id
+    
+    print(f"Looking for analyses for base_sample_id={base_sample_id} (from sample_id={sample_id})")
+    print(f"Available samples in cache: {list(TRAJECTORY_ANALYSIS_CACHE.keys())}")
+    
+    if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
+        print(f"No analyses found for {base_sample_id}")
+        return {}
+    
+    analyses = TRAJECTORY_ANALYSIS_CACHE[base_sample_id]
+    print(f"Found analyses for {base_sample_id}: {list(analyses.keys())}")
+    return analyses
+
+
+def store_trajectory_analysis(sample_id, region_name, trajectory_name, analysis_result):
+    """
+    Store trajectory analysis results for later retrieval.
+    """
+    base_sample_id = sample_id.rsplit("_", 1)[0] if "_" in sample_id else sample_id
+    
+    print(f"Storing analysis for base_sample_id={base_sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
+    
+    if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
+        TRAJECTORY_ANALYSIS_CACHE[base_sample_id] = {}
+        print(f"Created new cache entry for sample {base_sample_id}")
+    
+    if region_name not in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
+        TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name] = {}
+        print(f"Created new region {region_name} for sample {base_sample_id}")
+    
+    TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name][trajectory_name] = analysis_result
+    print(f"Stored trajectory {trajectory_name} in region {region_name}")
+    
+    # Debug: print the structure
+    print(f"Current cache structure for {base_sample_id}: {list(TRAJECTORY_ANALYSIS_CACHE[base_sample_id].keys())}")
+    if region_name in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
+        print(f"Trajectories in {region_name}: {list(TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name].keys())}")
+
+
+def get_sample_regions(sample_id):
+    """
+    Get all analyzed regions for a given sample.
+    """
+    print(f"Getting regions for sample_id={sample_id}")
+    analyses = get_stored_trajectory_analyses(sample_id)
+    print(f"Found analyses: {list(analyses.keys())}")
+    
+    regions = []
+    
+    for region_name in analyses.keys():
+        regions.append({
+            "id": region_name,
+            "name": region_name,
+            "description": f"Analyzed region: {region_name}"
+        })
+    
+    print(f"Returning {len(regions)} regions: {[r['name'] for r in regions]}")
+    return regions
+
+
+def get_region_trajectories(sample_id, region_id):
+    """
+    Get all trajectories for a given sample and region.
+    """
+    print(f"Getting trajectories for sample_id={sample_id}, region_id={region_id}")
+    analyses = get_stored_trajectory_analyses(sample_id)
+    trajectories = []
+    
+    if region_id in analyses:
+        print(f"Found region {region_id} with trajectories: {list(analyses[region_id].keys())}")
+        for trajectory_name in analyses[region_id].keys():
+            trajectories.append({
+                "id": trajectory_name,
+                "name": trajectory_name,
+                "description": f"Trajectory: {trajectory_name}"
+            })
+    else:
+        print(f"Region {region_id} not found in analyses")
+    
+    print(f"Returning {len(trajectories)} trajectories")
+    return trajectories
+
+
+def get_trajectory_significant_genes(sample_id, region_id, trajectory_id):
+    """
+    Get significant genes for a given trajectory from stored SPATA2 analysis.
+    """
+    print(f"Getting significant genes for: sample_id={sample_id}, region_id={region_id}, trajectory_id={trajectory_id}")
+    
+    analyses = get_stored_trajectory_analyses(sample_id)
+    print(f"Available analyses for sample {sample_id}: {list(analyses.keys())}")
+    
+    if region_id in analyses:
+        print(f"Available trajectories in region {region_id}: {list(analyses[region_id].keys())}")
+        
+        if trajectory_id in analyses[region_id]:
+            analysis_result = analyses[region_id][trajectory_id]
+            if "spata2_analysis" in analysis_result:
+                significant_genes = analysis_result["spata2_analysis"].get("significant_genes", [])
+                print(f"Found {len(significant_genes)} significant genes: {significant_genes[:5]}...")  # Show first 5
+                return significant_genes
+            else:
+                print("No spata2_analysis found in analysis result")
+        else:
+            print(f"Trajectory {trajectory_id} not found in region {region_id}")
+    else:
+        print(f"Region {region_id} not found in analyses")
+    
+    print("Returning empty gene list")
+    return []
+
+
+def get_trajectory_spata2_data(sample_id, region_id, trajectory_id, selected_genes):
+    """
+    Get SPATA2 trajectory data for line chart visualization.
+    """
+    print(f"Getting SPATA2 data for: sample_id={sample_id}, region_id={region_id}, trajectory_id={trajectory_id}")
+    print(f"Selected genes: {selected_genes}")
+    
+    analyses = get_stored_trajectory_analyses(sample_id)
+    
+    if region_id in analyses and trajectory_id in analyses[region_id]:
+        analysis_result = analyses[region_id][trajectory_id]
+        if "spata2_analysis" in analysis_result:
+            spata2_data = analysis_result["spata2_analysis"]
+            trajectory_data_raw = spata2_data.get("trajectory_data", [])
+            print(f"Found {len(trajectory_data_raw)} raw trajectory data points")
+            
+            # Process the data to group by gene (variables)
+            trajectory_data = {}
+            
+            for gene in selected_genes:
+                # Filter data for this specific gene
+                gene_data = [row for row in trajectory_data_raw if row.get("variables") == gene]
+                print(f"Gene {gene}: found {len(gene_data)} data points")
+                
+                if gene_data:
+                    # Sort by x coordinate to ensure proper line progression
+                    gene_data.sort(key=lambda row: row.get("x", 0))
+                    
+                    trajectory_data[gene] = {
+                        "data": gene_data
+                    }
+            
+            print(f"Returning trajectory data for {len(trajectory_data)} genes")
+            return trajectory_data
+        else:
+            print("No spata2_analysis found in analysis result")
+    else:
+        print(f"Region {region_id} or trajectory {trajectory_id} not found")
+    
+    print("Returning empty trajectory data")
+    return {}
 
 
 def ensure_json_serializable(value):
@@ -1705,6 +1868,18 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
                 "trajectory_id": None
             }
         }
+        
+        # Store the result in the cache for later retrieval by the cascade selectors
+        # Use trajectory_name as both region and trajectory identifier for now
+        # In a more sophisticated implementation, you might want to separate region and trajectory
+        if spata2_results:
+            # Create a region name from the trajectory name or use a default
+            region_name = f"Region_{trajectory_name}" if trajectory_name else "Default_Region"
+            print(f"Storing trajectory analysis: sample_id={sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
+            print(f"SPATA2 significant genes count: {len(spata2_results.get('significant_genes', []))}")
+            store_trajectory_analysis(sample_id, region_name, trajectory_name, result)
+        else:
+            print(f"No SPATA2 results to store for trajectory {trajectory_name}")
         
         return result
         

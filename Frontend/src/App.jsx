@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload, ConfigProvider, Empty } from "antd";
 import "./App.css";
 import { SampleViewer } from "./components/SampleViewer";
@@ -63,6 +63,9 @@ function App() {
 
   // Trajectory guideline state
   const [trajectoryGuideline, setTrajectoryGuideline] = useState(null);
+
+  // Ref for TrajectoryViewer to call refresh
+  const trajectoryViewerRef = useRef(null);
 
   useEffect(() => {
     fetchSamplesOption();
@@ -285,6 +288,14 @@ function App() {
     }
   };
 
+  // Handler for trajectory analysis completion
+  const handleTrajectoryAnalysisComplete = (sampleId) => {
+    // Refresh regions in TrajectoryViewer when a new trajectory is analyzed
+    if (trajectoryViewerRef.current) {
+      trajectoryViewerRef.current.refreshRegions(sampleId);
+    }
+  };
+
   return (
     <ConfigProvider theme={customTheme}>
       <div className="App">
@@ -428,6 +439,7 @@ function App() {
                       trajectoryGenes={trajectoryGenes}
                       trajectoryGenesSample={trajectoryGenesSample}
                       trajectoryGuideline={trajectoryGuideline}
+                      onTrajectoryAnalysisComplete={handleTrajectoryAnalysisComplete}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="40%" min="40%" max="50%">
@@ -441,8 +453,9 @@ function App() {
                         <div style={{ height: "100%", overflow: "auto" }}>
                           {selectedSamples.length > 0 || sampleDataLoading ? (
                             <TrajectoryViewer 
+                              ref={trajectoryViewerRef}
                               sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null}
-                              samples={selectOptions}
+                              samples={selectedSamples}
                               kosaraDisplayEnabled={kosaraDisplayEnabled}
                               onKosaraDisplayToggle={handleKosaraDisplayToggle}
                               onGeneSelection={handleTrajectoryGeneSelection}

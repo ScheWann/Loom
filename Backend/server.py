@@ -33,6 +33,10 @@ from process import (
     get_trajectory_gene_expression,
     get_direct_slingshot_data,
     analyze_trajectory,
+    get_sample_regions,
+    get_region_trajectories,
+    get_trajectory_significant_genes,
+    get_trajectory_spata2_data
 )
 
 
@@ -485,6 +489,84 @@ def get_trajectory_gene_expression_route():
             trajectory_path=trajectory_path,
         )
         return jsonify(gene_expression_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_sample_regions", methods=["POST"])
+def get_sample_regions_route():
+    """
+    Get all analyzed regions for a given sample
+    """
+    try:
+        data = request.json
+        sample_id = data.get("sample_id")
+        
+        if not sample_id:
+            return jsonify({"error": "sample_id is required"}), 400
+        
+        regions = get_sample_regions(sample_id)
+        return jsonify(regions)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_region_trajectories", methods=["POST"])
+def get_region_trajectories_route():
+    """
+    Get all trajectories for a given sample and region
+    """
+    try:
+        data = request.json
+        sample_id = data.get("sample_id")
+        region_id = data.get("region_id")
+        
+        if not sample_id or not region_id:
+            return jsonify({"error": "sample_id and region_id are required"}), 400
+        
+        trajectories = get_region_trajectories(sample_id, region_id)
+        return jsonify(trajectories)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_trajectory_genes", methods=["POST"])
+def get_trajectory_genes_route():
+    """
+    Get significant genes for a given trajectory from SPATA2 analysis
+    """
+    try:
+        data = request.json
+        sample_id = data.get("sample_id")
+        region_id = data.get("region_id")
+        trajectory_id = data.get("trajectory_id")
+        
+        if not sample_id or not region_id or not trajectory_id:
+            return jsonify({"error": "sample_id, region_id, and trajectory_id are required"}), 400
+        
+        genes = get_trajectory_significant_genes(sample_id, region_id, trajectory_id)
+        return jsonify(genes)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/get_spata2_trajectory_data", methods=["POST"])
+def get_spata2_trajectory_data_route():
+    """
+    Get SPATA2 trajectory data for line chart visualization
+    """
+    try:
+        data = request.json
+        sample_id = data.get("sample_id")
+        region_id = data.get("region_id")  
+        trajectory_id = data.get("trajectory_id")
+        selected_genes = data.get("selected_genes", [])
+        
+        if not sample_id or not region_id or not trajectory_id or not selected_genes:
+            return jsonify({"error": "sample_id, region_id, trajectory_id, and selected_genes are required"}), 400
+        
+        trajectory_data = get_trajectory_spata2_data(sample_id, region_id, trajectory_id, selected_genes)
+        return jsonify(trajectory_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

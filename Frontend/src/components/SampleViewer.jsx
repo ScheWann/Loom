@@ -26,7 +26,8 @@ export const SampleViewer = ({
     kosaraDisplayEnabled = true,
     trajectoryGenes = [],
     trajectoryGenesSample = null,
-    trajectoryGuideline = null
+    trajectoryGuideline = null,
+    onTrajectoryAnalysisComplete
 }) => {
     const containerRef = useRef(null);
     const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
@@ -1545,6 +1546,13 @@ export const SampleViewer = ({
                         setTrajectoryEnd(null);
                         setTrajectoryName('');
                         setArrowCoverageArea(null);
+
+                        // Notify parent that trajectory analysis is complete
+                        if (onTrajectoryAnalysisComplete) {
+                            // Get the sample ID from the trajectory data
+                            const sampleId = trajectoryData.sampleId;
+                            onTrajectoryAnalysisComplete(sampleId);
+                        }
                     } else {
                         console.error('Analysis failed:', result.message);
                         alert(`Analysis failed: ${result.message || 'Unknown error'}`);
@@ -4325,6 +4333,17 @@ export const SampleViewer = ({
                                 </div>
                             </div>
 
+                            <Button
+                                size="small"
+                                style={{ marginBottom: 5, width: '100%' }}
+                                color="blue"
+                                variant="outlined"
+                                onClick={generateUmap}
+                                loading={umapLoading}
+                            >
+                                {umapLoading ? 'Generating...' : 'Generate UMAP'}
+                            </Button>
+
                             {/* Trajectory Controls */}
                             <div style={{ marginBottom: 5, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
                                 <label style={{
@@ -4416,7 +4435,7 @@ export const SampleViewer = ({
                                 {/* Analyze Trajectory Button */}
                                 <Button
                                     size="small"
-                                    color="geekblue"
+                                    color="blue"
                                     variant="outlined"
                                     onClick={handleAnalyzeTrajectory}
                                     disabled={!trajectoryStart || !trajectoryEnd || !trajectoryName.trim() || isTrajectoryAnalyzing}
@@ -4427,7 +4446,7 @@ export const SampleViewer = ({
                                 </Button>
 
                                 {/* Existing Trajectories List */}
-                                {selectedAreaForEdit?.trajectories && selectedAreaForEdit.trajectories.length > 0 && (
+                                {/* {selectedAreaForEdit?.trajectories && selectedAreaForEdit.trajectories.length > 0 && (
                                     <div style={{ marginTop: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
                                         <label style={{
                                             display: 'block',
@@ -4459,20 +4478,10 @@ export const SampleViewer = ({
                                             ))}
                                         </div>
                                     </div>
-                                )}
+                                )} */}
                             </div>
 
                             {/* Action Buttons */}
-                            <Button
-                                size="small"
-                                style={{ marginBottom: 5, width: '100%' }}
-                                color="pink"
-                                variant="outlined"
-                                onClick={generateUmap}
-                                loading={umapLoading}
-                            >
-                                {umapLoading ? 'Generating...' : 'Generate UMAP'}
-                            </Button>
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
                                 <Button
                                     size="small"

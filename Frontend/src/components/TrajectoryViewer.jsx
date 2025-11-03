@@ -1,25 +1,38 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
 import { Select, Button, Row, Col, message, Spin, Empty, Switch } from "antd";
 import { LineChart } from "./LineChart";
 
 const { Option } = Select;
 
 // Main trajectory viewer component
-export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection, onTrajectoryGuidelineChange }) => {
+export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection, onTrajectoryGuidelineChange, onTrajectoryAnalysisComplete }, ref) => {
     const [samplesData, setSamplesData] = useState([]);
     const [selectedSample, setSelectedSample] = useState(null);
+    const [availableRegions, setAvailableRegions] = useState([]);
+    const [selectedRegion, setSelectedRegion] = useState(null);
+    const [availableTrajectories, setAvailableTrajectories] = useState([]);
+    const [selectedTrajectory, setSelectedTrajectory] = useState(null);
     const [availableGenes, setAvailableGenes] = useState([]);
     const [selectedGenes, setSelectedGenes] = useState([]);
-    const [confirmedGenes, setConfirmedGenes] = useState([]);
     const [trajectoryData, setTrajectoryData] = useState({});
     const [loading, setLoading] = useState(false);
-    const [geneListLoading, setGeneListLoading] = useState(false);
+    const [regionsLoading, setRegionsLoading] = useState(false);
+    const [trajectoriesLoading, setTrajectoriesLoading] = useState(false);
+    const [genesLoading, setGenesLoading] = useState(false);
     const containerRef = useRef();
     const [containerHeight, setContainerHeight] = useState(400);
-    const [isVertical, setIsVertical] = useState(false);
 
     // Throttle mouse move events to prevent excessive updates
     const lastMouseMoveRef = useRef({ time: 0, position: null, xValue: null });
+
+    // Expose refresh function to parent
+    useImperativeHandle(ref, () => ({
+        refreshRegions: (sampleIdToRefresh) => {
+            if (sampleIdToRefresh && selectedSample === sampleIdToRefresh) {
+                fetchRegions(selectedSample);
+            }
+        }
+    }), [selectedSample]);
 
     // Track container height for dynamic sizing
     useEffect(() => {
@@ -49,69 +62,150 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
         }
     }, [sampleId, samples]);
 
-    // Fetch gene list when sample changes or orientation toggles
-    // Also reset chart state to show Empty until user confirms new genes
+    // Fetch regions when sample changes
     useEffect(() => {
         if (selectedSample) {
-            // Clear current selections and chart data immediately
+            // Clear downstream selections
+            setSelectedRegion(null);
+            setSelectedTrajectory(null);
             setSelectedGenes([]);
-            setConfirmedGenes([]);
             setTrajectoryData({});
-            fetchGeneList(selectedSample);
+            fetchRegions(selectedSample);
+        } else {
+            setAvailableRegions([]);
+            setSelectedRegion(null);
+            setSelectedTrajectory(null);
+            setSelectedGenes([]);
+            setTrajectoryData({});
+        }
+    }, [selectedSample]);
+
+    // Fetch trajectories when region changes
+    useEffect(() => {
+        if (selectedSample && selectedRegion) {
+            // Clear downstream selections
+            setSelectedTrajectory(null);
+            setSelectedGenes([]);
+            setTrajectoryData({});
+            fetchTrajectories(selectedSample, selectedRegion);
+        } else {
+            setAvailableTrajectories([]);
+            setSelectedTrajectory(null);
+            setSelectedGenes([]);
+            setTrajectoryData({});
+        }
+    }, [selectedSample, selectedRegion]);
+
+    // Fetch genes when trajectory changes
+    useEffect(() => {
+        if (selectedSample && selectedRegion && selectedTrajectory) {
+            // Clear downstream selections
+            setSelectedGenes([]);
+            setTrajectoryData({});
+            fetchGenes(selectedSample, selectedRegion, selectedTrajectory);
         } else {
             setAvailableGenes([]);
             setSelectedGenes([]);
-            setConfirmedGenes([]);
             setTrajectoryData({});
         }
-    }, [selectedSample, isVertical]);
+    }, [selectedSample, selectedRegion, selectedTrajectory]);
 
-    const fetchGeneList = async (sample_id) => {
-        setGeneListLoading(true);
-
-        fetch("/api/get_trajectory_gene_list", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ sample_id, is_vertical: isVertical }),
-        }).then((response) => response.json())
-            .then((data) => {
-                setAvailableGenes(data);
-                setSelectedGenes([]); // Reset selected genes when sample changes
-            })
-            .catch((error) => {
-                setAvailableGenes([]);
-            })
-            .finally(() => {
-                setGeneListLoading(false);
+    const fetchRegions = async (sample_id) => {
+        setRegionsLoading(true);
+        try {
+            const response = await fetch("/api/get_sample_regions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sample_id }),
             });
+            const data = await response.json();
+            setAvailableRegions(data);
+        } catch (error) {
+            console.error("Error fetching regions:", error);
+            setAvailableRegions([]);
+        } finally {
+            setRegionsLoading(false);
+        }
     };
 
-    const fetchTrajectoryData = async (sample_id, genes) => {
+    const fetchTrajectories = async (sample_id, region_id) => {
+        setTrajectoriesLoading(true);
+        try {
+            const response = await fetch("/api/get_region_trajectories", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sample_id, region_id }),
+            });
+            const data = await response.json();
+            setAvailableTrajectories(data);
+        } catch (error) {
+            console.error("Error fetching trajectories:", error);
+            setAvailableTrajectories([]);
+        } finally {
+            setTrajectoriesLoading(false);
+        }
+    };
+
+    const fetchGenes = async (sample_id, region_id, trajectory_id) => {
+        setGenesLoading(true);
+        try {
+            const response = await fetch("/api/get_trajectory_genes", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sample_id, region_id, trajectory_id }),
+            });
+            const data = await response.json();
+            setAvailableGenes(data);
+        } catch (error) {
+            console.error("Error fetching genes:", error);
+            setAvailableGenes([]);
+        } finally {
+            setGenesLoading(false);
+        }
+    };
+
+    const fetchTrajectoryData = async (sample_id, region_id, trajectory_id, genes) => {
         setLoading(true);
-
-        fetch("/api/get_trajectory_data", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ sample_id, selected_genes: genes, is_vertical: isVertical }),
-        }).then((response) => response.json())
-            .then((data) => {
-                setTrajectoryData(data);
-            })
-            .catch((error) => {
-                setTrajectoryData({});
-            })
-            .finally(() => {
-                setLoading(false);
+        try {
+            const response = await fetch("/api/get_spata2_trajectory_data", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ 
+                    sample_id, 
+                    region_id, 
+                    trajectory_id, 
+                    selected_genes: genes 
+                }),
             });
+            const data = await response.json();
+            setTrajectoryData(data);
+        } catch (error) {
+            console.error("Error fetching trajectory data:", error);
+            setTrajectoryData({});
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleConfirm = () => {
+    const handleAdd = () => {
         if (!selectedSample) {
             message.warning("Please select a sample first");
+            return;
+        }
+        if (!selectedRegion) {
+            message.warning("Please select a region first");
+            return;
+        }
+        if (!selectedTrajectory) {
+            message.warning("Please select a trajectory first");
             return;
         }
         if (selectedGenes.length === 0) {
@@ -119,8 +213,7 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
             return;
         }
 
-        setConfirmedGenes([...selectedGenes]);
-        fetchTrajectoryData(selectedSample, selectedGenes);
+        fetchTrajectoryData(selectedSample, selectedRegion, selectedTrajectory, selectedGenes);
         
         // Notify parent about gene selection for Kosara display
         if (onGeneSelection && kosaraDisplayEnabled) {
@@ -129,13 +222,20 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
     };
 
     // Flatten sample options for Select component
-    const sampleOptions = samplesData.flatMap(group =>
-        group.options || []
-    );
+    const sampleOptions = samplesData.flatMap(group => {
+        // Handle both selectOptions format (nested) and selectedSamples format (flat)
+        if (group.options) {
+            // selectOptions format: [{text: "2µm", options: [{value, label}, ...]}, ...]
+            return group.options || [];
+        } else {
+            // selectedSamples format: [{id, name}, ...]
+            return [{value: group.id, label: group.name}];
+        }
+    });
 
     // Calculate chart height - now always the same since we use one chart
     const getChartHeight = () => {
-        if (confirmedGenes.length === 0) return containerHeight;
+        if (Object.keys(trajectoryData).length === 0) return containerHeight;
         return containerHeight - 32; // Account for controls
     };
 
@@ -165,10 +265,10 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
             sampleId: selectedSample,
             position: normalizedPosition,
             xValue: xValue,
-            isVertical: isVertical,
+            isVertical: false,
             visible: true
         });
-    }, [onTrajectoryGuidelineChange, selectedSample, isVertical]);
+    }, [onTrajectoryGuidelineChange, selectedSample]);
 
     // Handle mouse leave from trajectory chart
     const handleTrajectoryMouseLeave = useCallback(() => {
@@ -181,9 +281,12 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
         }
     }, [onTrajectoryGuidelineChange]);
 
+    // Get selected gene names for chart display
+    const selectedGeneNames = selectedGenes.filter(gene => trajectoryData[gene]);
+
     // Memoize LineChart props to prevent unnecessary re-renders
     const singleGeneChartProps = useMemo(() => ({
-        data: trajectoryData[confirmedGenes[0]]?.data,
+        data: trajectoryData[selectedGeneNames[0]]?.data,
         xAccessor: d => d.x,
         yAccessor: d => d.y,
         showErrorBands: true,
@@ -194,10 +297,10 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
         errorBandOpacity: 0.3,
         onMouseMove: handleTrajectoryMouseMove,
         onMouseLeave: handleTrajectoryMouseLeave
-    }), [trajectoryData, confirmedGenes, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
+    }), [trajectoryData, selectedGeneNames, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
 
     const multiGeneChartProps = useMemo(() => ({
-        datasets: confirmedGenes
+        datasets: selectedGeneNames
             .filter(gene => trajectoryData[gene])
             .map(gene => ({
                 data: trajectoryData[gene].data,
@@ -214,7 +317,7 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
         errorBandOpacity: 0.3,
         onMouseMove: handleTrajectoryMouseMove,
         onMouseLeave: handleTrajectoryMouseLeave
-    }), [trajectoryData, confirmedGenes, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
+    }), [trajectoryData, selectedGeneNames, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
 
 
     return (
@@ -237,33 +340,13 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                     flexWrap: "wrap",
                     flex: 1
                 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "12px", color: "#666" }}>Horizontal</span>
-                            <Switch
-                                size="small"
-                                checked={isVertical}
-                                onChange={setIsVertical}
-                            />
-                            <span style={{ fontSize: "12px", color: "#666" }}>Vertical</span>
-                        </div>
-                        
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "12px", color: "#666" }}>Kosara Display:</span>
-                            <Switch
-                                size="small"
-                                checked={kosaraDisplayEnabled}
-                                onChange={onKosaraDisplayToggle}
-                            />
-                        </div>
-                    </div>
+                    {/* Sample Selector */}
                     <Select
                         size="small"
                         placeholder="Select Sample"
-                        style={{ width: "200px", minWidth: "150px" }}
+                        style={{ width: "120px", minWidth: "120px" }}
                         value={selectedSample}
                         onChange={setSelectedSample}
-                        showSearch
                         filterOption={(input, option) =>
                             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
                         }
@@ -274,15 +357,57 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                             </Option>
                         ))}
                     </Select>
+
+                    {/* Region Selector */}
+                    <Select
+                        size="small"
+                        placeholder="Select Region"
+                        style={{ width: "120px", minWidth: "120px" }}
+                        value={selectedRegion}
+                        onChange={setSelectedRegion}
+                        disabled={!selectedSample || regionsLoading}
+                        loading={regionsLoading}
+                        filterOption={(input, option) =>
+                            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        }
+                    >
+                        {availableRegions.map(region => (
+                            <Option key={region.id} value={region.id}>
+                                {region.name}
+                            </Option>
+                        ))}
+                    </Select>
+
+                    {/* Trajectory Selector */}
+                    <Select
+                        size="small"
+                        placeholder="Select Trajectory"
+                        style={{ width: "120px", minWidth: "120px" }}
+                        value={selectedTrajectory}
+                        onChange={setSelectedTrajectory}
+                        disabled={!selectedRegion || trajectoriesLoading}
+                        loading={trajectoriesLoading}
+                        filterOption={(input, option) =>
+                            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        }
+                    >
+                        {availableTrajectories.map(trajectory => (
+                            <Option key={trajectory.id} value={trajectory.id}>
+                                {trajectory.name}
+                            </Option>
+                        ))}
+                    </Select>
+
+                    {/* Gene Selector (Multiple) */}
                     <Select
                         size="small"
                         mode="multiple"
                         placeholder="Select Genes"
-                        style={{ width: "150px", minWidth: "80px" }}
+                        style={{ width: "150px", minWidth: "150px" }}
                         value={selectedGenes}
                         onChange={setSelectedGenes}
-                        disabled={!selectedSample || geneListLoading}
-                        loading={geneListLoading}
+                        disabled={!selectedTrajectory || genesLoading}
+                        loading={genesLoading}
                         showSearch
                         filterOption={(input, option) =>
                             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
@@ -295,15 +420,17 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                             </Option>
                         ))}
                     </Select>
+
+                    {/* Add Button */}
                     <Button
                         size="small"
                         type="primary"
-                        onClick={handleConfirm}
-                        disabled={!selectedSample || selectedGenes.length === 0 || loading}
+                        onClick={handleAdd}
+                        disabled={!selectedSample || !selectedRegion || !selectedTrajectory || selectedGenes.length === 0 || loading}
                         loading={loading}
                         style={{ flexShrink: 0 }}
                     >
-                        OK
+                        Add
                     </Button>
                 </div>
             </div>
@@ -323,21 +450,21 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                     <Spin size="large" />
                 )}
 
-                {!loading && confirmedGenes.length === 0 && (
+                {!loading && Object.keys(trajectoryData).length === 0 && (
                     <Empty
-                        description="Select genes and click OK to view trajectory analysis"
+                        description="Select sample, region, trajectory, and genes, then click Add to view trajectory analysis"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                 )}
 
-                {!loading && confirmedGenes.length > 0 && Object.keys(trajectoryData).length === 0 && (
+                {!loading && Object.keys(trajectoryData).length > 0 && selectedGeneNames.length === 0 && (
                     <Empty
                         description="No trajectory data available for selected genes"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                 )}
 
-                {!loading && confirmedGenes.length > 0 && Object.keys(trajectoryData).length > 0 && (
+                {!loading && selectedGeneNames.length > 0 && Object.keys(trajectoryData).length > 0 && (
                     <div
                         style={{
                             backgroundColor: "#f9f9f9",
@@ -348,7 +475,7 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
                             borderRadius: "8px",
                         }}
                     >
-                        {confirmedGenes.length === 1 ? (
+                        {selectedGeneNames.length === 1 ? (
                             // Single gene: use original approach
                             <LineChart {...singleGeneChartProps} />
                         ) : (
@@ -360,4 +487,6 @@ export const TrajectoryViewer = ({ sampleId, samples, kosaraDisplayEnabled, onKo
             </div>
         </div>
     );
-};
+});
+
+TrajectoryViewer.displayName = 'TrajectoryViewer';
