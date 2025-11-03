@@ -3958,7 +3958,7 @@ export const SampleViewer = ({
                             </div>
 
                             {/* Trajectory Controls */}
-                            <div style={{ marginBottom: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
+                            <div style={{ marginBottom: 5, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
                                 <label style={{
                                     display: 'block',
                                     marginBottom: 6,
@@ -3973,7 +3973,9 @@ export const SampleViewer = ({
                                 {/* Add Trajectory Button */}
                                 <Button
                                     size="small"
-                                    type={isTrajectoryMode ? "primary" : "default"}
+                                    type='default'
+                                    variant="outlined"
+                                    color='blue'
                                     onClick={handleTrajectoryModeToggle}
                                     style={{ marginBottom: 8, width: '100%' }}
                                 >
@@ -3990,18 +3992,13 @@ export const SampleViewer = ({
                                         fontSize: 11,
                                         color: '#666'
                                     }}>
-                                        Click within the area to set start and end points for the trajectory arrow.
-                                        {trajectoryClickCount === 1 && (
-                                            <div style={{ marginTop: 4, fontWeight: 'bold', color: '#1890ff' }}>
-                                                Click again to set the end point.
-                                            </div>
-                                        )}
+                                        Click within the area to set <strong>start and end points</strong> for the trajectory arrow.
                                     </div>
                                 )}
 
                                 {/* Arrow Width Slider */}
                                 <div style={{ marginBottom: 8 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4, fontSize: 12, color: '#595959' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#595959' }}>
                                         <span style={{ fontWeight: 500 }}>Arrow Width:</span> {arrowWidth}px
                                     </div>
                                     <Slider
@@ -4009,22 +4006,22 @@ export const SampleViewer = ({
                                         max={maxArrowWidth}
                                         value={arrowWidth}
                                         onChange={handleArrowWidthChange}
-                                        style={{ marginBottom: 4 }}
+                                        style={{ margin: "5px 0 10px 0" }}
                                         disabled={!isTrajectoryMode || !trajectoryStart || !trajectoryEnd}
                                     />
                                 </div>
 
                                 {/* Analyze Trajectory Button */}
-                                {trajectoryStart && trajectoryEnd && (
                                     <Button
                                         size="small"
-                                        type="default"
+                                        color="geekblue"
+                                        variant="outlined"
                                         onClick={handleAnalyzeTrajectory}
-                                        style={{ marginBottom: 8, width: '100%' }}
+                                        disabled={trajectoryStart && trajectoryEnd ? false : true}
+                                        style={{ width: '100%' }}
                                     >
                                         Analyze Trajectory
                                     </Button>
-                                )}
                             </div>
 
                             {/* Action Buttons */}
@@ -4041,7 +4038,8 @@ export const SampleViewer = ({
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'space-between' }}>
                                 <Button
                                     size="small"
-                                    danger
+                                    color="default"
+                                    variant="outlined"
                                     onClick={handleAreaDelete}
                                     style={{ flex: 1 }}
                                 >
