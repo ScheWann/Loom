@@ -141,7 +141,7 @@ def run_spata2_analysis(base_sample_id, barcodes_data, start_16um_lowres, end_16
                 non_random <- getSgsResultsVec(sts1)
                 
                 # Generate line plot data
-                p <- plotStsLineplot(object_roi, variables = head(non_random, 10), id = "{trajectory_id}")
+                p <- plotStsLineplot(object_roi, variables = non_random, id = "{trajectory_id}")
                 
                 # Extract plot data
                 plot_layer_data <- ggplot2::ggplot_build(p)$data[[1]]
