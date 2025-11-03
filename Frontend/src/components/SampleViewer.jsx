@@ -67,6 +67,12 @@ export const SampleViewer = ({
     // Track which samples currently have an in-flight kosara request
     const [kosaraLoadingSamples, setKosaraLoadingSamples] = useState({}); // { sampleId: true }
 
+    // Loading state for trajectory analysis
+    const [isTrajectoryAnalyzing, setIsTrajectoryAnalyzing] = useState(false);
+
+    // Store analyzing trajectories that should persist even when window is closed
+    const [analyzingTrajectories, setAnalyzingTrajectories] = useState([]); // [{ areaId, start, end, width, name }]
+
     // Single gene expression data per sample for sequential coloring
     const [singleGeneDataBySample, setSingleGeneDataBySample] = useState({}); // { sampleId: { cells: [...], min_expression: ..., max_expression: ... } }
 
@@ -1463,6 +1469,19 @@ export const SampleViewer = ({
             return;
         }
 
+        // Set loading state
+        setIsTrajectoryAnalyzing(true);
+
+        // Store the analyzing trajectory so it persists even if window is closed
+        const analyzingTrajectory = {
+            areaId: selectedAreaForEdit.id,
+            start: trajectoryStart,
+            end: trajectoryEnd,
+            width: arrowWidth,
+            name: trajectoryName.trim()
+        };
+        setAnalyzingTrajectories(prev => [...prev, analyzingTrajectory]);
+
         const trajectoryData = {
             sampleId: selectedAreaForEdit.sampleId,
             startCoordinates: trajectoryStart,
@@ -1514,11 +1533,13 @@ export const SampleViewer = ({
                         
                         setCustomAreas(updatedAreas);
                         
-                        // Update selected area for edit
-                        const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
-                        setSelectedAreaForEdit(updatedSelectedArea);
+                        // Update selected area for edit if it's still open
+                        if (selectedAreaForEdit && selectedAreaForEdit.id === selectedAreaForEdit.id) {
+                            const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
+                            setSelectedAreaForEdit(updatedSelectedArea);
+                        }
                         
-                        // Exit trajectory mode and reset
+                        // Exit trajectory mode and reset only after successful analysis
                         setIsTrajectoryMode(false);
                         setTrajectoryStart(null);
                         setTrajectoryEnd(null);
@@ -1537,6 +1558,15 @@ export const SampleViewer = ({
             .catch(error => {
                 console.error('Error analyzing trajectory:', error);
                 alert(`Error analyzing trajectory: ${error.message}`);
+            })
+            .finally(() => {
+                // Clear loading state and remove from analyzing trajectories
+                setIsTrajectoryAnalyzing(false);
+                setAnalyzingTrajectories(prev => prev.filter(t => 
+                    !(t.areaId === selectedAreaForEdit.id && 
+                      t.start === trajectoryStart && 
+                      t.end === trajectoryEnd)
+                ));
             });
     }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, customAreas, setCustomAreas]);
 
@@ -2514,6 +2544,72 @@ export const SampleViewer = ({
             }
         });
 
+        // Analyzing trajectories visualization (persist even when edit window is closed)
+        analyzingTrajectories.forEach(analyzingTrajectory => {
+            const area = customAreas.find(a => a.id === analyzingTrajectory.areaId);
+            if (area) {
+                const offset = sampleOffsets[area.sampleId] || [0, 0];
+                const startPos = [analyzingTrajectory.start[0] + offset[0], analyzingTrajectory.start[1] + offset[1]];
+                const endPos = [analyzingTrajectory.end[0] + offset[0], analyzingTrajectory.end[1] + offset[1]];
+                
+                // Calculate arrow direction
+                const dx = endPos[0] - startPos[0];
+                const dy = endPos[1] - startPos[1];
+                const length = Math.sqrt(dx * dx + dy * dy);
+                
+                if (length > 0) {
+                    const dirX = dx / length;
+                    const dirY = dy / length;
+                    
+                    // Arrow head parameters
+                    const arrowLength = 50;
+                    const arrowWidth = 15;
+                    const perpX = -dirY;
+                    const perpY = dirX;
+                    
+                    // Arrow head points
+                    const arrowTip = endPos;
+                    const arrowBase1 = [
+                        endPos[0] - dirX * arrowLength - perpX * arrowWidth,
+                        endPos[1] - dirY * arrowLength - perpY * arrowWidth
+                    ];
+                    const arrowBase2 = [
+                        endPos[0] - dirX * arrowLength + perpX * arrowWidth,
+                        endPos[1] - dirY * arrowLength + perpY * arrowWidth
+                    ];
+                    
+                    // Trajectory line (red for analyzing)
+                    layers.push(new LineLayer({
+                        id: `analyzing-trajectory-line-${analyzingTrajectory.areaId}`,
+                        data: [{
+                            sourcePosition: startPos,
+                            targetPosition: [endPos[0] - dirX * arrowLength * 0.3, endPos[1] - dirY * arrowLength * 0.3]
+                        }],
+                        getSourcePosition: d => d.sourcePosition,
+                        getTargetPosition: d => d.targetPosition,
+                        getColor: [255, 0, 0, 200], // Red for analyzing trajectories
+                        getWidth: 3,
+                        widthUnits: 'pixels',
+                        pickable: false
+                    }));
+                    
+                    // Arrow head (red for analyzing)
+                    layers.push(new PolygonLayer({
+                        id: `analyzing-trajectory-arrow-${analyzingTrajectory.areaId}`,
+                        data: [{ 
+                            polygon: [arrowTip, arrowBase1, arrowBase2]
+                        }],
+                        getPolygon: d => d.polygon,
+                        getFillColor: [255, 0, 0, 200], // Red for analyzing trajectories
+                        getLineColor: [200, 0, 0, 255],
+                        getLineWidth: 1,
+                        lineWidthUnits: 'pixels',
+                        pickable: false
+                    }));
+                }
+            }
+        });
+
         // Trajectory visualization layers
         if (isTrajectoryMode && selectedAreaForEdit) {
             // Show trajectory start point
@@ -2568,8 +2664,8 @@ export const SampleViewer = ({
                         id: 'trajectory-arrow-head',
                         data: [{ polygon: [arrowTip, arrowBase1, arrowBase2] }],
                         getPolygon: d => d.polygon,
-                        getFillColor: [255, 0, 0, 200], // Red for arrow head
-                        getLineColor: [200, 0, 0, 255],
+                        getFillColor: isTrajectoryAnalyzing ? [255, 0, 0, 200] : [255, 0, 0, 200], // Red during drawing and analysis
+                        getLineColor: isTrajectoryAnalyzing ? [200, 0, 0, 255] : [200, 0, 0, 255],
                         getLineWidth: 2,
                         lineWidthUnits: 'pixels',
                         pickable: false,
@@ -2590,7 +2686,7 @@ export const SampleViewer = ({
                         }],
                         getSourcePosition: d => d.sourcePosition,
                         getTargetPosition: d => d.targetPosition,
-                        getColor: [255, 0, 0, 200], // Blue for arrow
+                        getColor: isTrajectoryAnalyzing ? [255, 0, 0, 200] : [255, 0, 0, 200], // Red during drawing and analysis
                         getWidth: 3,
                         widthUnits: 'pixels',
                         pickable: false,
@@ -2637,7 +2733,7 @@ export const SampleViewer = ({
         }
 
         return layers;
-    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea, hoveredTrajectory, calculateSavedTrajectoryArrowCoverageArea]);
+    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea, hoveredTrajectory, calculateSavedTrajectoryArrowCoverageArea, isTrajectoryAnalyzing, analyzingTrajectories]);
 
     // Combine all layers
     const layers = useMemo(() => {
@@ -4235,6 +4331,7 @@ export const SampleViewer = ({
                                     color='blue'
                                     onClick={handleTrajectoryModeToggle}
                                     style={{ marginBottom: 8, width: '100%' }}
+                                    disabled={isTrajectoryAnalyzing}
                                 >
                                     {isTrajectoryMode ? 'Cancel Trajectory' : 'Add Trajectory'}
                                 </Button>
@@ -4307,10 +4404,11 @@ export const SampleViewer = ({
                                         color="geekblue"
                                         variant="outlined"
                                         onClick={handleAnalyzeTrajectory}
-                                        disabled={!trajectoryStart || !trajectoryEnd || !trajectoryName.trim()}
+                                        disabled={!trajectoryStart || !trajectoryEnd || !trajectoryName.trim() || isTrajectoryAnalyzing}
+                                        loading={isTrajectoryAnalyzing}
                                         style={{ width: '100%' }}
                                     >
-                                        Analyze Trajectory
+                                        {isTrajectoryAnalyzing ? 'Analyzing...' : 'Analyze Trajectory'}
                                     </Button>
                                 
                                 {/* Existing Trajectories List */}
