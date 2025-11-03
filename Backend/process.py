@@ -121,6 +121,15 @@ def clear_processed_cache():
     print("Processed trajectory cache cleared")
 
 
+def clear_trajectory_analysis_cache():
+    """
+    Clear the global trajectory analysis cache to free memory.
+    """
+    global TRAJECTORY_ANALYSIS_CACHE
+    TRAJECTORY_ANALYSIS_CACHE.clear()
+    print("Trajectory analysis cache cleared")
+
+
 def clear_kosara_cache():
     """Clear the Kosara calculation cache to free memory"""
     global KOSARA_CALCULATION_CACHE
@@ -1710,7 +1719,7 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
         raise ValueError(f"Error converting coordinates: {str(e)}")
 
 
-def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_width_pixels, drawing_points, trajectory_name):
+def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_width_pixels, drawing_points, trajectory_name, area_name=None):
     """
     Analyze trajectory using multi-scale matching method from Jupyter notebook.
     Maps coordinates from processed image to full-resolution, finds 16um barcodes,
@@ -1723,6 +1732,7 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
     - arrow_width_pixels: Width of the trajectory arrow in pixels
     - drawing_points: List of [x, y] points defining the ROI polygon
     - trajectory_name: User-defined name for the trajectory
+    - area_name: User-defined name for the region/area (optional)
 
     Returns:
     - Dictionary containing analysis results with mapped coordinates, 16um barcodes, and trajectory data
@@ -1870,11 +1880,10 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         }
         
         # Store the result in the cache for later retrieval by the cascade selectors
-        # Use trajectory_name as both region and trajectory identifier for now
-        # In a more sophisticated implementation, you might want to separate region and trajectory
+        # Use area_name as the region identifier, fallback to trajectory-based name if not provided
         if spata2_results:
-            # Create a region name from the trajectory name or use a default
-            region_name = f"Region_{trajectory_name}" if trajectory_name else "Default_Region"
+            # Use the provided area_name as the region, or create a default if not provided
+            region_name = area_name if area_name else f"Region_{trajectory_name}" if trajectory_name else "Default_Region"
             print(f"Storing trajectory analysis: sample_id={sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
             print(f"SPATA2 significant genes count: {len(spata2_results.get('significant_genes', []))}")
             store_trajectory_analysis(sample_id, region_name, trajectory_name, result)

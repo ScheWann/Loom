@@ -26,17 +26,18 @@ from process import (
     get_umap_data,
     perform_go_analysis,
     get_trajectory_data,
-    get_highly_variable_genes,
     get_trajectory_gene_list,
     load_adata_to_cache,
     clear_adata_cache,
+    clear_trajectory_analysis_cache,
     get_trajectory_gene_expression,
     get_direct_slingshot_data,
     analyze_trajectory,
     get_sample_regions,
     get_region_trajectories,
     get_trajectory_significant_genes,
-    get_trajectory_spata2_data
+    get_trajectory_spata2_data,
+    get_highly_variable_genes
 )
 
 
@@ -95,6 +96,18 @@ def clear_adata_cache_route():
     try:
         clear_adata_cache()
         return jsonify({"status": "success", "message": "AnnData cache cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/clear_trajectory_analysis_cache", methods=["POST"])
+def clear_trajectory_analysis_cache_route():
+    """
+    Clear the global trajectory analysis cache to free memory.
+    """
+    try:
+        clear_trajectory_analysis_cache()
+        return jsonify({"status": "success", "message": "Trajectory analysis cache cleared"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -443,6 +456,7 @@ def analyze_trajectory_route():
     arrow_width_pixels = data.get("arrowWidthPixels")
     drawing_points = data.get("drawingPoints")
     trajectory_name = data.get("trajectoryName")
+    area_name = data.get("areaName")  # Extract the area/region name
     
     # Validate required parameters
     if not all([sample_id, start_coordinates, end_coordinates, drawing_points, trajectory_name]):
@@ -461,7 +475,8 @@ def analyze_trajectory_route():
             end_coordinates=end_coordinates,
             arrow_width_pixels=arrow_width_pixels,
             drawing_points=drawing_points,
-            trajectory_name=trajectory_name
+            trajectory_name=trajectory_name,
+            area_name=area_name  # Pass the area name to the analysis function
         )
         return jsonify(result)
     except Exception as e:
