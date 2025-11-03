@@ -298,8 +298,6 @@ function App() {
 
   // Handler for area saved - refresh regions immediately when area is saved
   const handleAreaSaved = (sampleId, regionName) => {
-    console.log(`Area saved: ${regionName} for sample ${sampleId}`);
-    // Refresh regions in TrajectoryViewer immediately when an area is saved
     if (trajectoryViewerRef.current) {
       trajectoryViewerRef.current.refreshRegions(sampleId);
     }

@@ -910,9 +910,6 @@ export const SampleViewer = ({
 
     const finishDrawing = () => {
         if (drawingPoints.length >= 3 && currentDrawingSample) {
-            console.log('Raw ROI Coordinates:', drawingPoints);
-            console.log(`ROI Sample: ${currentDrawingSample}`);
-
             // Create ROI name for unique ID
             const roiName = `Custom Area ${customAreas.length + 1}`;
 
@@ -976,7 +973,6 @@ export const SampleViewer = ({
             .then(response => response.json())
             .then(result => {
                 if (result.status === 'success') {
-                    console.log('Region stored successfully:', result.message);
                     // Notify parent component that an area has been saved
                     if (onAreaSaved) {
                         onAreaSaved(finalArea.sampleId, finalArea.name);
@@ -1454,7 +1450,6 @@ export const SampleViewer = ({
             setArrowCoverageArea(null);
             setTrajectoryClickCount(1);
             setMaxArrowWidth(50); // Reset to default
-            console.log('Trajectory start point:', worldCoord);
         } else if (newClickCount === 2) {
             // Second click - set end point and calculate coverage
             setTrajectoryEnd(worldCoord);
@@ -1482,12 +1477,6 @@ export const SampleViewer = ({
         if (trajectoryStart && trajectoryEnd) {
             const coverage = calculateArrowCoverageArea(trajectoryStart, trajectoryEnd, width);
             setArrowCoverageArea(coverage);
-
-            if (coverage) {
-                // console.log('New actual left width:', coverage.actualLeftWidth);
-                // console.log('New actual right width:', coverage.actualRightWidth);
-                console.log('New total coverage width:', coverage.totalWidth);
-            }
         }
     }, [trajectoryStart, trajectoryEnd, calculateArrowCoverageArea]);
 
@@ -1536,9 +1525,6 @@ export const SampleViewer = ({
                 try {
                     const result = JSON.parse(text);
                     if (result.status === 'success') {
-                        console.log('Trajectory analysis result:', result);
-
-                        // Store trajectory in the area
                         const newTrajectory = {
                             id: `trajectory_${Date.now()}`,
                             name: trajectoryName.trim(),
