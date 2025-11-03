@@ -296,6 +296,15 @@ function App() {
     }
   };
 
+  // Handler for area saved - refresh regions immediately when area is saved
+  const handleAreaSaved = (sampleId, regionName) => {
+    console.log(`Area saved: ${regionName} for sample ${sampleId}`);
+    // Refresh regions in TrajectoryViewer immediately when an area is saved
+    if (trajectoryViewerRef.current) {
+      trajectoryViewerRef.current.refreshRegions(sampleId);
+    }
+  };
+
   return (
     <ConfigProvider theme={customTheme}>
       <div className="App">
@@ -440,6 +449,7 @@ function App() {
                       trajectoryGenesSample={trajectoryGenesSample}
                       trajectoryGuideline={trajectoryGuideline}
                       onTrajectoryAnalysisComplete={handleTrajectoryAnalysisComplete}
+                      onAreaSaved={handleAreaSaved}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="40%" min="40%" max="50%">

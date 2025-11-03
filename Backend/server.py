@@ -37,7 +37,8 @@ from process import (
     get_region_trajectories,
     get_trajectory_significant_genes,
     get_trajectory_spata2_data,
-    get_highly_variable_genes
+    get_highly_variable_genes,
+    store_region
 )
 
 
@@ -506,6 +507,35 @@ def get_trajectory_gene_expression_route():
         return jsonify(gene_expression_data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/store_region", methods=["POST"])
+def store_region_route():
+    """
+    Store a region for a given sample to make it available in the region selector.
+    """
+    data = request.json
+    sample_id = data.get("sampleId")
+    region_name = data.get("regionName")
+    
+    # Validate required parameters
+    if not all([sample_id, region_name]):
+        return jsonify({
+            "status": "error",
+            "message": "Missing required parameters: sampleId, regionName"
+        }), 400
+    
+    try:
+        store_region(sample_id, region_name)
+        return jsonify({
+            "status": "success",
+            "message": f"Region '{region_name}' stored for sample '{sample_id}'"
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Error storing region: {str(e)}"
+        }), 500
 
 
 @app.route("/api/get_sample_regions", methods=["POST"])

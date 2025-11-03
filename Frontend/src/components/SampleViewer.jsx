@@ -27,7 +27,8 @@ export const SampleViewer = ({
     trajectoryGenes = [],
     trajectoryGenesSample = null,
     trajectoryGuideline = null,
-    onTrajectoryAnalysisComplete
+    onTrajectoryAnalysisComplete,
+    onAreaSaved  // Add new callback for when areas are saved
 }) => {
     const containerRef = useRef(null);
     const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
@@ -960,6 +961,33 @@ export const SampleViewer = ({
                 color: areaColor
             };
             setCustomAreas(prev => [...prev, finalArea]);
+            
+            // Store the region in the backend so it appears in the TrajectoryViewer
+            const storeRegionData = {
+                sampleId: finalArea.sampleId,
+                regionName: finalArea.name
+            };
+            
+            fetch('/api/store_region', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(storeRegionData)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'success') {
+                    console.log('Region stored successfully:', result.message);
+                    // Notify parent component that an area has been saved
+                    if (onAreaSaved) {
+                        onAreaSaved(finalArea.sampleId, finalArea.name);
+                    }
+                } else {
+                    console.error('Failed to store region:', result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error storing region:', error);
+            });
         }
 
         setIsAreaTooltipVisible(false);

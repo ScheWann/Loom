@@ -155,6 +155,24 @@ def get_stored_trajectory_analyses(sample_id):
     return analyses
 
 
+def store_region(sample_id, region_name):
+    """
+    Store a region for a given sample without any trajectory analysis.
+    This allows regions to be available in the selector before trajectories are analyzed.
+    """
+    base_sample_id = sample_id.rsplit("_", 1)[0] if "_" in sample_id else sample_id
+    
+    if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
+        TRAJECTORY_ANALYSIS_CACHE[base_sample_id] = {}
+        print(f"Created new cache entry for sample {base_sample_id}")
+    
+    if region_name not in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
+        TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name] = {}
+        print(f"Created new region {region_name} for sample {base_sample_id}")
+    else:
+        print(f"Region {region_name} already exists for sample {base_sample_id}")
+
+
 def store_trajectory_analysis(sample_id, region_name, trajectory_name, analysis_result):
     """
     Store trajectory analysis results for later retrieval.
@@ -205,8 +223,9 @@ def get_region_trajectories(sample_id, region_id):
     """
     Get all trajectories for a given sample and region.
     """
-    print(f"Getting trajectories for sample_id={sample_id}, region_id={region_id}")
+    print(f"🔍 DEBUG: get_region_trajectories called with sample_id={sample_id}, region_id={region_id}")
     analyses = get_stored_trajectory_analyses(sample_id)
+    print(f"🔍 DEBUG: Available regions in cache: {list(analyses.keys())}")
     trajectories = []
     
     if region_id in analyses:
@@ -218,7 +237,8 @@ def get_region_trajectories(sample_id, region_id):
                 "description": f"Trajectory: {trajectory_name}"
             })
     else:
-        print(f"Region {region_id} not found in analyses")
+        print(f"❌ Region {region_id} not found in analyses")
+        print(f"🔍 Available regions: {list(analyses.keys())}")
     
     print(f"Returning {len(trajectories)} trajectories")
     return trajectories
@@ -1884,9 +1904,17 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         if spata2_results:
             # Use the provided area_name as the region, or create a default if not provided
             region_name = area_name if area_name else f"Region_{trajectory_name}" if trajectory_name else "Default_Region"
+            print(f"🔍 DEBUG: analyze_trajectory - area_name={area_name}, trajectory_name={trajectory_name}")
+            print(f"🔍 DEBUG: analyze_trajectory - final region_name={region_name}")
             print(f"Storing trajectory analysis: sample_id={sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
             print(f"SPATA2 significant genes count: {len(spata2_results.get('significant_genes', []))}")
             store_trajectory_analysis(sample_id, region_name, trajectory_name, result)
+            
+            # Debug: print current cache state after storage
+            analyses = get_stored_trajectory_analyses(sample_id)
+            print(f"🔍 DEBUG: After storing, available regions: {list(analyses.keys())}")
+            if region_name in analyses:
+                print(f"🔍 DEBUG: Trajectories in region '{region_name}': {list(analyses[region_name].keys())}")
         else:
             print(f"No SPATA2 results to store for trajectory {trajectory_name}")
         
