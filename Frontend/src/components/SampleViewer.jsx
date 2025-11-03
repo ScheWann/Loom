@@ -2560,7 +2560,7 @@ export const SampleViewer = ({
         const cellLayers = generateCellLayers();
         const areaLayers = generateCustomAreaLayers();
         const guidelineLayers = generateTrajectoryGuidelineLayer();
-        return [...imgLayers, ...cellLayers, ...areaLayers, ...guidelineLayers];
+        return [...imgLayers, ...areaLayers, ...cellLayers, ...guidelineLayers];
     }, [generateImageLayers, generateCellLayers, generateCustomAreaLayers, generateTrajectoryGuidelineLayer]);
 
     // Stable viewState wrapper to avoid creating a new object on every render
