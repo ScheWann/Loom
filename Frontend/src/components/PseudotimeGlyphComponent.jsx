@@ -670,7 +670,19 @@ export const PseudotimeGlyphComponent = ({
 
             // Only update state if we have successful results
             if (analysisResults.length > 0) {
-                setGeneExpressionData(analysisResults);
+                // Append new results to existing data, replacing any data for the same glyphs
+                setGeneExpressionData(prevData => {
+                    // Get trajectory IDs that are being updated
+                    const updatedTrajectoryIds = new Set(analysisResults.map(result => result.trajectory_id));
+                    
+                    // Keep existing data that doesn't conflict with new results
+                    const preservedData = prevData.filter(existingData => 
+                        !updatedTrajectoryIds.has(existingData.trajectory_id)
+                    );
+                    
+                    // Combine preserved data with new results
+                    return [...preservedData, ...analysisResults];
+                });
             } else {
                 console.warn('No gene expression data was successfully retrieved');
             }
