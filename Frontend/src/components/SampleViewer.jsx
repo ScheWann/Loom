@@ -1565,9 +1565,10 @@ export const SampleViewer = ({
 
                         // Notify parent that trajectory analysis is complete
                         if (onTrajectoryAnalysisComplete) {
-                            // Get the sample ID from the trajectory data
+                            // Get the sample ID and region name from the trajectory data
                             const sampleId = trajectoryData.sampleId;
-                            onTrajectoryAnalysisComplete(sampleId);
+                            const regionName = trajectoryData.areaName;
+                            onTrajectoryAnalysisComplete(sampleId, regionName);
                         }
                     } else {
                         console.error('Analysis failed:', result.message);

@@ -32,8 +32,14 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
             if (sampleIdToRefresh && selectedSample === sampleIdToRefresh) {
                 fetchRegions(selectedSample);
             }
+        },
+        refreshTrajectories: (sampleIdToRefresh, regionIdToRefresh) => {
+            if (sampleIdToRefresh && selectedSample === sampleIdToRefresh && 
+                regionIdToRefresh && selectedRegion === regionIdToRefresh) {
+                fetchTrajectories(selectedSample, selectedRegion);
+            }
         }
-    }), [selectedSample]);
+    }), [selectedSample, selectedRegion]);
 
     // Track chart container height dynamically
     useEffect(() => {

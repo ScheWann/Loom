@@ -35,6 +35,21 @@ SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 
+def normalize_sample_id(sample_id):
+    """
+    Normalize sample ID to base sample ID for consistent cache operations.
+    Extracts the base sample ID by removing the scale suffix (e.g., "skin_TXK6Z4X_A1_16um" -> "skin_TXK6Z4X_A1")
+    """
+    if "_" in sample_id:
+        # Check if the last part looks like a scale (contains 'um' and digits)
+        parts = sample_id.rsplit("_", 1)
+        if len(parts) == 2 and ('um' in parts[1] or parts[1].isdigit()):
+            normalized = parts[0]
+            print(f"NORMALIZE_DEBUG: {sample_id} -> {normalized}")
+            return normalized
+    print(f"NORMALIZE_DEBUG: {sample_id} -> {sample_id} (no change)")
+    return sample_id
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH = os.path.join(BASE_DIR, "samples_list.json")
 
@@ -127,7 +142,6 @@ def clear_trajectory_analysis_cache():
     """
     global TRAJECTORY_ANALYSIS_CACHE
     TRAJECTORY_ANALYSIS_CACHE.clear()
-    print("Trajectory analysis cache cleared")
 
 
 def clear_kosara_cache():
@@ -141,7 +155,7 @@ def get_stored_trajectory_analyses(sample_id):
     Get all stored trajectory analyses for a given sample.
     Returns a dictionary with region and trajectory information.
     """
-    base_sample_id = sample_id.rsplit("_", 1)[0] if "_" in sample_id else sample_id
+    base_sample_id = normalize_sample_id(sample_id)
     
     print(f"Looking for analyses for base_sample_id={base_sample_id} (from sample_id={sample_id})")
     print(f"Available samples in cache: {list(TRAJECTORY_ANALYSIS_CACHE.keys())}")
@@ -160,24 +174,20 @@ def store_region(sample_id, region_name):
     Store a region for a given sample without any trajectory analysis.
     This allows regions to be available in the selector before trajectories are analyzed.
     """
-    base_sample_id = sample_id.rsplit("_", 1)[0] if "_" in sample_id else sample_id
-    
+    base_sample_id = normalize_sample_id(sample_id)
+
     if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
         TRAJECTORY_ANALYSIS_CACHE[base_sample_id] = {}
-        print(f"Created new cache entry for sample {base_sample_id}")
     
     if region_name not in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
         TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name] = {}
-        print(f"Created new region {region_name} for sample {base_sample_id}")
-    else:
-        print(f"Region {region_name} already exists for sample {base_sample_id}")
 
 
 def store_trajectory_analysis(sample_id, region_name, trajectory_name, analysis_result):
     """
     Store trajectory analysis results for later retrieval.
     """
-    base_sample_id = sample_id.rsplit("_", 1)[0] if "_" in sample_id else sample_id
+    base_sample_id = normalize_sample_id(sample_id)
     
     print(f"Storing analysis for base_sample_id={base_sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
     
@@ -201,9 +211,7 @@ def get_sample_regions(sample_id):
     """
     Get all analyzed regions for a given sample.
     """
-    print(f"Getting regions for sample_id={sample_id}")
     analyses = get_stored_trajectory_analyses(sample_id)
-    print(f"Found analyses: {list(analyses.keys())}")
     
     regions = []
     
@@ -214,7 +222,6 @@ def get_sample_regions(sample_id):
             "description": f"Analyzed region: {region_name}"
         })
     
-    print(f"Returning {len(regions)} regions: {[r['name'] for r in regions]}")
     return regions
 
 

@@ -289,10 +289,10 @@ function App() {
   };
 
   // Handler for trajectory analysis completion
-  const handleTrajectoryAnalysisComplete = (sampleId) => {
-    // Refresh regions in TrajectoryViewer when a new trajectory is analyzed
+  const handleTrajectoryAnalysisComplete = (sampleId, regionName) => {
+    // Refresh trajectories in TrajectoryViewer when a new trajectory is analyzed
     if (trajectoryViewerRef.current) {
-      trajectoryViewerRef.current.refreshRegions(sampleId);
+      trajectoryViewerRef.current.refreshTrajectories(sampleId, regionName);
     }
   };
 
