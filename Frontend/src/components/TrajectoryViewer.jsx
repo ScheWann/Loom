@@ -280,7 +280,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     };
 
     // Handle mouse movement over trajectory chart with throttling
-    const handleTrajectoryMouseMove = useCallback((normalizedPosition, xValue) => {
+    const handleTrajectoryMouseMove = useCallback((normalizedPosition, xValue, trajectoryInfo = null) => {
         if (!onTrajectoryGuidelineChange || !selectedSample) return;
 
         const now = Date.now();
@@ -304,17 +304,19 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
             position: normalizedPosition,
             xValue: xValue,
             isVertical: false,
-            visible: true
+            visible: true,
+            trajectoryInfo: trajectoryInfo // Pass through trajectory-specific information
         });
     }, [onTrajectoryGuidelineChange, selectedSample]);
 
     // Handle mouse leave from trajectory chart
-    const handleTrajectoryMouseLeave = useCallback(() => {
+    const handleTrajectoryMouseLeave = useCallback((trajectoryInfo = null) => {
         if (onTrajectoryGuidelineChange) {
             // Reset our tracking reference
             lastMouseMoveRef.current = { time: 0, position: null, xValue: null };
             onTrajectoryGuidelineChange({
-                visible: false
+                visible: false,
+                trajectoryInfo: trajectoryInfo // Pass through trajectory-specific information
             });
         }
     }, [onTrajectoryGuidelineChange]);
@@ -333,8 +335,25 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
     // Function to create chart props for a specific dataset
     const createChartProps = (dataset) => {
-        const { data, genes } = dataset;
+        const { data, genes, sample_id, region_id, trajectory_id } = dataset;
         const availableGenes = genes.filter(gene => data[gene]);
+        
+        // Create trajectory-specific mouse handlers
+        const handleSpecificTrajectoryMouseMove = (normalizedPosition, xValue) => {
+            handleTrajectoryMouseMove(normalizedPosition, xValue, {
+                sample_id,
+                region_id, 
+                trajectory_id
+            });
+        };
+
+        const handleSpecificTrajectoryMouseLeave = () => {
+            handleTrajectoryMouseLeave({
+                sample_id,
+                region_id,
+                trajectory_id
+            });
+        };
         
         if (availableGenes.length === 1) {
             // Single gene chart - use datasets format to ensure label is passed
@@ -352,8 +371,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 showLegend: true,
                 margin: { top: 30, right: 20, bottom: 50, left: 60 },
                 errorBandOpacity: 0.3,
-                onMouseMove: handleTrajectoryMouseMove,
-                onMouseLeave: handleTrajectoryMouseLeave
+                onMouseMove: handleSpecificTrajectoryMouseMove,
+                onMouseLeave: handleSpecificTrajectoryMouseLeave
             };
         } else {
             // Multi-gene chart
@@ -373,8 +392,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 showLegend: true,
                 margin: { top: 30, right: 20, bottom: 40, left: 60 },
                 errorBandOpacity: 0.3,
-                onMouseMove: handleTrajectoryMouseMove,
-                onMouseLeave: handleTrajectoryMouseLeave
+                onMouseMove: handleSpecificTrajectoryMouseMove,
+                onMouseLeave: handleSpecificTrajectoryMouseLeave
             };
         }
     };

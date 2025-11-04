@@ -1531,7 +1531,11 @@ export const SampleViewer = ({
                             start: trajectoryStart,
                             end: trajectoryEnd,
                             width: arrowWidth,
-                            analysisResult: result
+                            analysisResult: result,
+                            // Store region and trajectory identifiers for chart correlation
+                            region_id: selectedAreaForEdit.name, // Area name serves as region_id
+                            trajectory_id: trajectoryName.trim(), // Trajectory name serves as trajectory_id
+                            sample_id: selectedAreaForEdit.sampleId // Store sample_id for reference
                         };
 
                         // Update the area with the new trajectory using functional update to preserve any areas added during analysis
@@ -2238,67 +2242,83 @@ export const SampleViewer = ({
             return [];
         }
 
-        // Get cell data for the target sample
-        const cellData = filteredCellData[trajectoryGuideline.sampleId] || [];
-        const rawCellData = coordinatesData && coordinatesData[trajectoryGuideline.sampleId] ? coordinatesData[trajectoryGuideline.sampleId] : [];
+        const layers = [];
 
-        if (cellData.length === 0 || rawCellData.length === 0) {
-            return [];
+        // If trajectory info is provided, highlight the specific trajectory
+        if (trajectoryGuideline.trajectoryInfo) {
+            const { sample_id, region_id, trajectory_id } = trajectoryGuideline.trajectoryInfo;
+            
+            // Find matching trajectory in custom areas
+            customAreas.forEach(area => {
+                if (area.sampleId === sample_id && area.trajectories && area.trajectories.length > 0) {
+                    area.trajectories.forEach(trajectory => {
+                        // Match trajectory by region_id and trajectory_id
+                        // If these properties don't exist on the trajectory, fall back to name-based matching
+                        const shouldHighlight = 
+                            (trajectory.region_id === region_id && trajectory.trajectory_id === trajectory_id) ||
+                            (trajectory.name && trajectory.name.includes(`Region ${region_id}`) && trajectory.name.includes(`Trajectory ${trajectory_id}`)) ||
+                            // If no specific matching criteria, highlight the first trajectory in the area (temporary fallback)
+                            (!trajectory.region_id && !trajectory.trajectory_id && area.trajectories.indexOf(trajectory) === 0);
+                        
+                        if (shouldHighlight) {
+                            const areaOffset = sampleOffsets[area.sampleId] || [0, 0];
+                            const startPos = [trajectory.start[0] + areaOffset[0], trajectory.start[1] + areaOffset[1]];
+                            const endPos = [trajectory.end[0] + areaOffset[0], trajectory.end[1] + areaOffset[1]];
+
+                            // Calculate arrow direction and perpendicular direction
+                            const dx = endPos[0] - startPos[0];
+                            const dy = endPos[1] - startPos[1];
+                            const length = Math.sqrt(dx * dx + dy * dy);
+
+                            if (length > 0) {
+                                const dirX = dx / length;
+                                const dirY = dy / length;
+                                const perpX = -dirY; // Perpendicular direction
+                                const perpY = dirX;
+
+                                // Calculate the position along the trajectory based on the normalized position from chart
+                                // trajectoryGuideline.position is between 0 and 1
+                                const t = trajectoryGuideline.position; // 0 = start, 1 = end
+                                const trajectoryGuidelinePosition = [
+                                    startPos[0] + (endPos[0] - startPos[0]) * t,
+                                    startPos[1] + (endPos[1] - startPos[1]) * t
+                                ];
+
+                                // Add yellow transparent rectangle showing the trajectory width at this specific position
+                                // This represents the actual analyze_trajectory width parameter
+                                const trajectoryWidth = trajectory.width || 30; // Use trajectory width or default
+                                const halfWidth = trajectoryWidth / 2;
+                                const rectLength = 20; // Length along the trajectory direction
+                                const halfRectLength = rectLength / 2;
+                                
+                                const yellowRect = [
+                                    [trajectoryGuidelinePosition[0] - perpX * halfWidth - dirX * halfRectLength, trajectoryGuidelinePosition[1] - perpY * halfWidth - dirY * halfRectLength],
+                                    [trajectoryGuidelinePosition[0] + perpX * halfWidth - dirX * halfRectLength, trajectoryGuidelinePosition[1] + perpY * halfWidth - dirY * halfRectLength],
+                                    [trajectoryGuidelinePosition[0] + perpX * halfWidth + dirX * halfRectLength, trajectoryGuidelinePosition[1] + perpY * halfWidth + dirY * halfRectLength],
+                                    [trajectoryGuidelinePosition[0] - perpX * halfWidth + dirX * halfRectLength, trajectoryGuidelinePosition[1] - perpY * halfWidth + dirY * halfRectLength]
+                                ];
+
+                                layers.push(new PolygonLayer({
+                                    id: `trajectory-width-highlight-${trajectory.id}`,
+                                    data: [{
+                                        polygon: yellowRect
+                                    }],
+                                    getPolygon: d => d.polygon,
+                                    getFillColor: [255, 255, 0, 150], // Yellow semi-transparent fill
+                                    getLineColor: [255, 255, 0, 200], // Yellow outline
+                                    getLineWidth: 2,
+                                    lineWidthUnits: 'pixels',
+                                    pickable: false,
+                                }));
+                            }
+                        }
+                    });
+                }
+            });
         }
 
-        // Calculate bounds based on actual cell positions
-        const imageSize = imageSizes[trajectoryGuideline.sampleId];
-        const offset = sampleOffsets[trajectoryGuideline.sampleId] || [0, 0];
-
-        if (!imageSize) {
-            return [];
-        }
-
-        // Find min/max cell coordinates in the raw data (before offset adjustment)
-        const xCoords = rawCellData.map(cell => cell.cell_x);
-        const yCoords = rawCellData.map(cell => cell.cell_y);
-        const minX = Math.min(...xCoords);
-        const maxX = Math.max(...xCoords);
-        const minY = Math.min(...yCoords);
-        const maxY = Math.max(...yCoords);
-
-        // Calculate the line position based on orientation
-        let lineStart, lineEnd;
-
-        if (trajectoryGuideline.isVertical) {
-            // Chart is vertical, so show horizontal line in SampleViewer
-            // Map trajectory position to cell coordinate space for Y position
-            const cellYRange = maxY - minY;
-            const yPositionInCells = minY + (trajectoryGuideline.position * cellYRange);
-            const yPosition = offset[1] + yPositionInCells;
-            // Use cell bounds for horizontal extent, adjusted with offset
-            lineStart = [offset[0] + minX, yPosition];
-            lineEnd = [offset[0] + maxX, yPosition];
-        } else {
-            // Chart is horizontal, so show vertical line in SampleViewer
-            // Map trajectory position to cell coordinate space for X position
-            const cellXRange = maxX - minX;
-            const xPositionInCells = minX + (trajectoryGuideline.position * cellXRange);
-            const xPosition = offset[0] + xPositionInCells;
-            // Use cell bounds for vertical extent, adjusted with offset
-            lineStart = [xPosition, offset[1] + minY];
-            lineEnd = [xPosition, offset[1] + maxY];
-        }
-
-        return [new LineLayer({
-            id: 'trajectory-guideline',
-            data: [{
-                sourcePosition: lineStart,
-                targetPosition: lineEnd
-            }],
-            getSourcePosition: d => d.sourcePosition,
-            getTargetPosition: d => d.targetPosition,
-            getColor: [255, 140, 0, 200], // Orange color
-            getWidth: 3,
-            widthUnits: 'pixels',
-            pickable: false,
-        })];
-    }, [trajectoryGuideline, selectedSamples, imageSizes, sampleOffsets, filteredCellData, coordinatesData]);
+        return layers;
+    }, [trajectoryGuideline, selectedSamples, imageSizes, sampleOffsets, filteredCellData, coordinatesData, customAreas]);
 
     // Generate custom area layers
     const generateCustomAreaLayers = useCallback(() => {

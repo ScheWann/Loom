@@ -468,6 +468,7 @@ function App() {
                               onKosaraDisplayToggle={handleKosaraDisplayToggle}
                               onGeneSelection={handleTrajectoryGeneSelection}
                               onTrajectoryGuidelineChange={handleTrajectoryGuidelineChange}
+                              onTrajectoryAnalysisComplete={handleTrajectoryAnalysisComplete}
                             />
                           ) : (
                             <div style={{
