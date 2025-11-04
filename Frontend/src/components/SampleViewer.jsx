@@ -1965,8 +1965,8 @@ export const SampleViewer = ({
         selectedSamples.forEach(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
-            // Only generate kosara polygons if Kosara display is enabled
-            if (kosaraDisplayEnabled && mode === 'genes' && selectedGenes.length > 0 && (kosaraDataBySample[sampleId]?.length > 0)) {
+            // Generate kosara polygons when in gene mode with selected genes and kosara data available
+            if (mode === 'genes' && selectedGenes.length > 0 && (kosaraDataBySample[sampleId]?.length > 0)) {
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 const optimizedPathData = kosaraDataBySample[sampleId].flatMap(d => {
                     const angles = Object.entries(d.angles || {});
@@ -1992,7 +1992,7 @@ export const SampleViewer = ({
             }
         });
         return result;
-    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath, kosaraDisplayEnabled]);
+    }, [selectedSamples, radioCellGeneModes, selectedGenes, geneColorMap, kosaraDataBySample, sampleOffsets, generateKosaraPath]);
 
     // Precompute hovered ID sets per sample for efficient matching
     const hoveredIdsSetBySample = useMemo(() => {
@@ -2006,7 +2006,7 @@ export const SampleViewer = ({
             const mode = radioCellGeneModes[sampleId];
 
             // If in gene mode and single gene data available, draw single gene expression visualization
-            if (kosaraDisplayEnabled && mode === 'genes' && singleGeneDataBySample[sampleId]?.cells?.length > 0) {
+            if (mode === 'genes' && singleGeneDataBySample[sampleId]?.cells?.length > 0) {
                 const singleGeneData = singleGeneDataBySample[sampleId];
                 const offset = sampleOffsets[sampleId] || [0, 0];
                 const baseRadius = 5;
@@ -2081,8 +2081,8 @@ export const SampleViewer = ({
 
                 return layers;
             }
-            // If in gene mode and kosara data available and Kosara display is enabled, draw kosara polygons + optional highlight overlay
-            else if (kosaraDisplayEnabled && mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
+            // If in gene mode and kosara data available, draw kosara polygons + optional highlight overlay
+            else if (mode === 'genes' && kosaraPolygonsBySample[sampleId]?.length > 0) {
                 const optimizedPathData = kosaraPolygonsBySample[sampleId];
                 const layers = [new PolygonLayer({
                     id: `kosara-polygons-${sampleId}`,
@@ -2228,7 +2228,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState, kosaraDisplayEnabled]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState]);
 
     // Generate trajectory guideline layer
     const generateTrajectoryGuidelineLayer = useCallback(() => {
@@ -2863,6 +2863,9 @@ export const SampleViewer = ({
     }, [selectedSamples]);
 
     // Handle Kosara display toggle changes from parent
+    // NOTE: This effect has been disabled to allow gene visualization regardless of kosaraDisplayEnabled flag
+    // Gene data should always be displayed when available, independent of this toggle
+    /*
     useEffect(() => {
         if (!kosaraDisplayEnabled) {
             // Reset trajectory tracking when kosara is disabled
@@ -2916,10 +2919,11 @@ export const SampleViewer = ({
             }
         }
     }, [kosaraDisplayEnabled]);
+    */
 
     // Handle trajectory gene selection changes
     useEffect(() => {
-        if (kosaraDisplayEnabled && trajectoryGenes.length > 0 && trajectoryGenesSample) {
+        if (trajectoryGenes.length > 0 && trajectoryGenesSample) {
             // Create a key to track the current trajectory selection
             const currentTrajectoryKey = `${trajectoryGenesSample}:${trajectoryGenes.sort().join(',')}`;
 
@@ -2948,7 +2952,7 @@ export const SampleViewer = ({
                 }
             }
         }
-    }, [trajectoryGenes, trajectoryGenesSample, kosaraDisplayEnabled, selectedSamples]);
+    }, [trajectoryGenes, trajectoryGenesSample, selectedSamples]);
 
     // Preload high-res images for all selected samples
     useEffect(() => {
