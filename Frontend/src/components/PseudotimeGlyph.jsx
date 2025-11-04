@@ -684,6 +684,34 @@ export const PseudotimeGlyph = ({
         const maxRadius = axisLength / 2 - 15;
         const topSection = g.append("g").attr("class", "top-section");
 
+        // Left arc for Low Expression (red)
+        const lowExprArc = d3.arc()
+            .innerRadius(8)
+            .outerRadius(maxRadius)
+            .startAngle(Math.PI * 1.5)
+            .endAngle(Math.PI * 1.6);
+
+        topSection.append("path")
+            .attr("d", lowExprArc)
+            .attr("transform", `translate(${centerX}, ${centerY})`)
+            .attr("fill", "red")
+            .attr("opacity", 0.1)
+            .attr("stroke", "none");
+
+        // Right arc for High Expression (green)
+        const highExprArc = d3.arc()
+            .innerRadius(8)
+            .outerRadius(maxRadius)
+            .startAngle(Math.PI * 2.4)
+            .endAngle(Math.PI * 2.5);
+
+        topSection.append("path")
+            .attr("d", highExprArc)
+            .attr("transform", `translate(${centerX}, ${centerY})`)
+            .attr("fill", "green")
+            .attr("opacity", 0.1)
+            .attr("stroke", "none");
+
         // Add concentric circles for time progression using trajectory data time range
         // These should always be shown as a time reference
         const trajectoryTimeRange = maxPseudotime - minPseudotime;
