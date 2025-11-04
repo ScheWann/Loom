@@ -112,6 +112,7 @@ export const LineChart = ({
     const allYMaxValues = [];
 
     allDatasets.forEach(dataset => {
+      console.log(dataset);
       if (dataset.data && dataset.data.length > 0) {
         const xValues = dataset.data.map(dataset.xAccessor);
         const yValues = dataset.data.map(dataset.yAccessor);
@@ -206,25 +207,16 @@ export const LineChart = ({
       .attr("y", adjustedMargin.top + innerHeight + 35)
       .attr("text-anchor", "middle")
       .attr("font-size", 12)
-      .text("Distance along Trajectory");
+      .text("Distance along Trajectory[mm]");
 
     svg
       .append("text")
       .attr("transform", `rotate(-90)`)
-      .attr("x", -svgHeight / 2)
-      .attr("y", 16)
+      .attr("x", -svgHeight / 2.5)
+      .attr("y", 25)
       .attr("text-anchor", "middle")
       .attr("font-size", 12)
       .text("Estimated Expression");
-
-    svg
-      .append("text")
-      .attr("x", adjustedMargin.left)
-      .attr("y", adjustedMargin.top - 10)
-      .attr("text-anchor", "start")
-      .attr("font-size", 14)
-      .attr("font-weight", "bold")
-      .text("Gene Expression Trajectories");
 
     // Add legend for datasets
     if (showLegend) {
