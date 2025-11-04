@@ -89,8 +89,6 @@ export const PseudotimeGlyphComponent = ({
                             cell_ids: roiData.cellIds
                         };
 
-                        console.log(`Fetching HVGs for ROI: ${roiData.displayName}, cells: ${roiData.cellIds.length}`);
-
                         const response = await fetch("/api/get_highly_variable_genes", {
                             method: "POST",
                             headers: {
