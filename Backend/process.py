@@ -139,9 +139,23 @@ def clear_processed_cache():
 def clear_trajectory_analysis_cache():
     """
     Clear the global trajectory analysis cache to free memory.
+    This will clear all region and trajectory data used by get_sample_regions and get_region_trajectories.
     """
     global TRAJECTORY_ANALYSIS_CACHE
     TRAJECTORY_ANALYSIS_CACHE.clear()
+    print("Trajectory analysis cache cleared - all regions and trajectories removed")
+
+
+def clear_all_caches():
+    """
+    Clear all caches when frontend refreshes the page.
+    This ensures clean state for region and trajectory selectors.
+    """
+    clear_adata_cache()
+    clear_processed_cache()
+    clear_trajectory_analysis_cache()
+    clear_kosara_cache()
+    print("All caches cleared - frontend page refresh complete")
 
 
 def clear_kosara_cache():
