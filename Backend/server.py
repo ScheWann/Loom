@@ -142,17 +142,18 @@ def get_coordinates_route():
 @app.route("/api/get_highly_variable_genes", methods=["POST"])
 def get_highly_variable_genes_route():
     """
-    Get list of highly variable genes for the selected samples
+    Get list of highly variable genes for the selected samples, optionally within specific ROI cells
     """
     sample_ids = request.json["sample_ids"]
     top_n = request.json.get("top_n", 20)
+    cell_ids = request.json.get("cell_ids", None)  # Optional ROI cell IDs
 
     # Allow clients to request all genes by passing top_n as 'all', None, 0, or negative
     if isinstance(top_n, str) and top_n.lower() == "all":
         top_n_value = "all"
     else:
         top_n_value = top_n
-    return jsonify(get_highly_variable_genes(sample_ids, top_n_value))
+    return jsonify(get_highly_variable_genes(sample_ids, cell_ids=cell_ids, top_n=top_n_value))
 
 
 @app.route("/api/get_gene_name_search", methods=["POST"])

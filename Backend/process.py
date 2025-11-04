@@ -1933,12 +1933,13 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         }
 
 
-def get_highly_variable_genes(sample_ids, top_n=20):
+def get_highly_variable_genes(sample_ids, cell_ids=None, top_n=20):
     """
-    Get top N highly variable genes for each sample.
+    Get top N highly variable genes for each sample based on cells within a specific ROI.
     
     Parameters:
     - sample_ids: List of sample IDs
+    - cell_ids: List of cell IDs within the ROI to analyze. If None, analyze entire sample.
     - top_n: Number of top genes to return per sample (default: 20). If None, 'all', or <= 0, return all genes.
     
     Returns:
@@ -1962,29 +1963,59 @@ def get_highly_variable_genes(sample_ids, top_n=20):
                 # Get cached AnnData
                 adata = get_cached_adata(sample_id)
                 
+                # Filter adata to ROI cells if cell_ids are provided
+                if cell_ids is not None:
+                    # Convert cell_ids to regular Python strings to avoid numpy string issues
+                    if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
+                        cell_ids_str = [str(cell_id) for cell_id in cell_ids]
+                    else:
+                        cell_ids_str = [str(cell_ids)]
+                    
+                    # Filter to valid cell IDs that exist in the dataset
+                    valid_cell_ids = [cell for cell in cell_ids_str if cell in adata.obs_names]
+                    
+                    if len(valid_cell_ids) == 0:
+                        print(f"No valid cell IDs found in ROI for sample {sample_id}")
+                        result[sample_id] = []
+                        continue
+                    
+                    # Subset adata to ROI cells
+                    adata_roi = adata[valid_cell_ids].copy()
+                    
+                    # Check if ROI has sufficient cells for analysis
+                    if adata_roi.n_obs < 10:
+                        print(f"ROI for sample {sample_id} has too few cells ({adata_roi.n_obs}) for meaningful analysis")
+                        result[sample_id] = []
+                        continue
+                else:
+                    adata_roi = adata.copy()
+                
                 # If caller requests all genes, bypass HVG selection
                 if top_n is None or (isinstance(top_n, str) and str(top_n).lower() == 'all') or (isinstance(top_n, int) and top_n <= 0):
-                    result[sample_id] = adata.var_names.tolist()
+                    result[sample_id] = adata_roi.var_names.tolist()
                 else:
-                    # Calculate highly variable genes if not already done
-                    if 'highly_variable' not in adata.var.columns:
-                        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
+                    # Calculate highly variable genes on the ROI subset
+                    # Use a lower n_top_genes if we have fewer genes than usual
+                    n_top_genes = min(2000, adata_roi.n_vars // 2) if adata_roi.n_vars < 4000 else 2000
+                    
+                    # Calculate highly variable genes for the ROI
+                    sc.pp.highly_variable_genes(adata_roi, n_top_genes=n_top_genes, flavor="seurat_v3")
                     
                     # Get highly variable genes
-                    if 'highly_variable' in adata.var.columns:
-                        hvg_mask = adata.var['highly_variable']
-                        hvg_genes = adata.var_names[hvg_mask]
+                    if 'highly_variable' in adata_roi.var.columns:
+                        hvg_mask = adata_roi.var['highly_variable']
+                        hvg_genes = adata_roi.var_names[hvg_mask]
                         
                         # Sort by variance if available, otherwise just take first N
-                        if 'highly_variable_rank' in adata.var.columns:
-                            hvg_df = adata.var[hvg_mask].sort_values('highly_variable_rank')
+                        if 'highly_variable_rank' in adata_roi.var.columns:
+                            hvg_df = adata_roi.var[hvg_mask].sort_values('highly_variable_rank')
                             top_genes = hvg_df.index[:int(top_n)].tolist()
                         else:
                             top_genes = hvg_genes[:int(top_n)].tolist()
                         
                         result[sample_id] = top_genes
                     else:
-                        result[sample_id] = adata.var_names[:int(top_n)].tolist()
+                        result[sample_id] = adata_roi.var_names[:int(top_n)].tolist()
                     
             except Exception as e:
                 print(f"Error getting highly variable genes for sample {sample_id}: {e}")

@@ -13,6 +13,7 @@ export const PseudotimeGlyphComponent = ({
     hoveredTrajectory,
     setHoveredTrajectory,
     umapDataSets,
+    roiCellIds = null, // Optional ROI cell IDs for region-specific analysis (deprecated - now using umapDataSets directly)
 }) => {
     // State for tracking selected glyphs
     const [selectedGlyphs, setSelectedGlyphs] = useState(new Set());
@@ -23,8 +24,8 @@ export const PseudotimeGlyphComponent = ({
     // State for hiding/closing glyphs - tracked by stable key (source_title)
     const [hiddenGlyphs, setHiddenGlyphs] = useState(new Set());
 
-    // State for highly variable genes
-    const [highVariableGenes, setHighVariableGenes] = useState([]);
+    // State for highly variable genes per ROI
+    const [highVariableGenesByRoi, setHighVariableGenesByRoi] = useState({}); // {roiKey: geneList}
 
     // Remote search state for gene Select
     const [searchQuery, setSearchQuery] = useState('');
@@ -36,95 +37,181 @@ export const PseudotimeGlyphComponent = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [componentError, setComponentError] = useState(null);
 
-    // Ref to track if genes have been fetched for current sample IDs
-    const fetchedSampleIdsRef = useRef(new Set());
+    // Ref to track which ROIs have been fetched
+    const fetchedRoisRef = useRef(new Set());
 
     // Memoize the sample IDs to prevent unnecessary re-fetching
     const memoizedSampleIds = useMemo(() => {
         return [...relatedSampleIds].sort(); // Sort for consistent comparison
     }, [relatedSampleIds]);
 
-    // Load highly variable genes only when sample IDs actually change
-    useEffect(() => {
-        const fetchHighVariableGenes = async () => {
-            // Create a key from current sample IDs to check if we need to fetch
-            const currentSampleKey = memoizedSampleIds.join(',');
+    // Extract ROI information from umapDataSets
+    const roiDataSets = useMemo(() => {
+        if (!umapDataSets || !Array.isArray(umapDataSets)) return [];
+        
+        return umapDataSets.map(dataset => {
+            const cellIds = dataset.data?.map(point => point.id || point.cell_id).filter(Boolean) || [];
+            return {
+                roiKey: dataset.adata_umap_title || dataset.title || 'unknown',
+                displayName: dataset.title || dataset.adata_umap_title || 'Unknown ROI',
+                cellIds: cellIds,
+                sampleId: dataset.sampleId
+            };
+        }).filter(roi => roi.cellIds.length > 0); // Only include ROIs with cells
+    }, [umapDataSets]);
 
-            // Only fetch if sample IDs are different from what we've already fetched
-            if (memoizedSampleIds.length === 0) {
-                setHighVariableGenes([]);
-                fetchedSampleIdsRef.current.clear();
+    // Load highly variable genes for each ROI separately
+    useEffect(() => {
+        const fetchHighVariableGenesForRois = async () => {
+            if (memoizedSampleIds.length === 0 || roiDataSets.length === 0) {
+                setHighVariableGenesByRoi({});
+                fetchedRoisRef.current.clear();
                 return;
             }
 
-            // Check if we've already fetched for these exact sample IDs
-            if (fetchedSampleIdsRef.current.has(currentSampleKey)) {
-                return; // Skip fetching, we already have the data
-            }
+            const newHighVariableGenesByRoi = {};
+            const fetchPromises = [];
 
-            try {
-                const response = await fetch("/api/get_highly_variable_genes", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        sample_ids: memoizedSampleIds,
-                        top_n: 20
-                    }),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-
-                    // Convert the response to the format expected by the select component
-                    const geneList = [];
-                    Object.entries(data).forEach(([sampleId, genes]) => {
-                        genes.forEach(gene => {
-                            geneList.push({
-                                value: `${sampleId}_${gene}`,
-                                label: gene,
-                                sampleId: sampleId
-                            });
-                        });
-                    });
-
-                    setHighVariableGenes(geneList);
-
-                    // Mark these sample IDs as fetched
-                    fetchedSampleIdsRef.current.add(currentSampleKey);
-                } else {
-                    console.error("Failed to fetch highly variable genes");
-                    setHighVariableGenes([]);
+            // Fetch highly variable genes for each ROI separately
+            for (const roiData of roiDataSets) {
+                const roiCacheKey = `${memoizedSampleIds.join(',')}|${roiData.roiKey}|${JSON.stringify([...roiData.cellIds].sort())}`;
+                
+                // Skip if we've already fetched for this exact ROI
+                if (fetchedRoisRef.current.has(roiCacheKey)) {
+                    continue;
                 }
-            } catch (error) {
-                console.error("Error fetching highly variable genes:", error);
-                setHighVariableGenes([]);
+
+                const fetchPromise = (async () => {
+                    try {
+                        const requestBody = {
+                            sample_ids: memoizedSampleIds,
+                            top_n: 20,
+                            cell_ids: roiData.cellIds
+                        };
+
+                        console.log(`Fetching HVGs for ROI: ${roiData.displayName}, cells: ${roiData.cellIds.length}`);
+
+                        const response = await fetch("/api/get_highly_variable_genes", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(requestBody),
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+
+                            // Convert the response to the format expected by the select component
+                            const geneList = [];
+                            Object.entries(data).forEach(([sampleId, genes]) => {
+                                genes.forEach(gene => {
+                                    geneList.push({
+                                        value: `${sampleId}_${gene}`,
+                                        label: gene,
+                                        sampleId: sampleId,
+                                        roiKey: roiData.roiKey
+                                    });
+                                });
+                            });
+
+                            newHighVariableGenesByRoi[roiData.roiKey] = geneList;
+                            fetchedRoisRef.current.add(roiCacheKey);
+                        } else {
+                            console.error(`Failed to fetch highly variable genes for ROI: ${roiData.displayName}`);
+                            newHighVariableGenesByRoi[roiData.roiKey] = [];
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching highly variable genes for ROI ${roiData.displayName}:`, error);
+                        newHighVariableGenesByRoi[roiData.roiKey] = [];
+                    }
+                })();
+
+                fetchPromises.push(fetchPromise);
             }
+
+            // Wait for all ROI fetches to complete
+            await Promise.all(fetchPromises);
+
+            // Update state with new ROI-specific highly variable genes
+            setHighVariableGenesByRoi(prev => ({
+                ...prev,
+                ...newHighVariableGenesByRoi
+            }));
         };
 
-        fetchHighVariableGenes();
-    }, [memoizedSampleIds]);
+        fetchHighVariableGenesForRois();
+    }, [memoizedSampleIds, roiDataSets]); // Depend on roiDataSets instead of cacheKey
 
-    // Group genes by sample ID for the select options and memoize the result
+    // Combine all highly variable genes from all ROIs for the select options
+    const allHighVariableGenes = useMemo(() => {
+        const allGenes = [];
+        Object.values(highVariableGenesByRoi).forEach(geneList => {
+            allGenes.push(...geneList);
+        });
+        return allGenes;
+    }, [highVariableGenesByRoi]);
+
+    // Group genes by ROI and then by sample ID for the select options
     const hvgGroupedOptions = useMemo(() => {
-        const geneOptions = highVariableGenes.reduce((groups, gene) => {
-            if (!groups[gene.sampleId]) {
-                groups[gene.sampleId] = [];
-            }
-            groups[gene.sampleId].push({
-                label: gene.label,
-                value: gene.value
-            });
-            return groups;
-        }, {});
+        if (roiDataSets.length === 0) {
+            // Fallback: group by sample ID only
+            const geneOptions = allHighVariableGenes.reduce((groups, gene) => {
+                if (!groups[gene.sampleId]) {
+                    groups[gene.sampleId] = [];
+                }
+                groups[gene.sampleId].push({
+                    label: gene.label,
+                    value: gene.value
+                });
+                return groups;
+            }, {});
 
-        // Convert to antd Select option format with groups
-        return Object.entries(geneOptions).map(([sampleId, genes]) => ({
-            label: sampleId,
-            options: genes
-        }));
-    }, [highVariableGenes]);
+            return Object.entries(geneOptions).map(([sampleId, genes]) => ({
+                label: sampleId,
+                options: genes
+            }));
+        }
+
+        // Group by ROI first, then by sample
+        const roiGroups = [];
+        
+        roiDataSets.forEach(roiData => {
+            const roiGenes = highVariableGenesByRoi[roiData.roiKey] || [];
+            if (roiGenes.length > 0) {
+                // Group genes by sample within this ROI
+                const sampleGroups = roiGenes.reduce((groups, gene) => {
+                    if (!groups[gene.sampleId]) {
+                        groups[gene.sampleId] = [];
+                    }
+                    groups[gene.sampleId].push({
+                        label: gene.label,
+                        value: gene.value
+                    });
+                    return groups;
+                }, {});
+
+                // If multiple samples in this ROI, create sub-groups
+                if (Object.keys(sampleGroups).length > 1) {
+                    roiGroups.push({
+                        label: `${roiData.displayName}`,
+                        options: Object.entries(sampleGroups).map(([sampleId, genes]) => ({
+                            label: `${sampleId}`,
+                            options: genes
+                        }))
+                    });
+                } else {
+                    // Single sample in ROI, use ROI name directly
+                    roiGroups.push({
+                        label: `${roiData.displayName}`,
+                        options: Object.values(sampleGroups)[0] || []
+                    });
+                }
+            }
+        });
+
+        return roiGroups;
+    }, [allHighVariableGenes, roiDataSets, highVariableGenesByRoi]);
 
     // Keep displayOptions in sync with HVGs when not actively searching
     useEffect(() => {
@@ -509,7 +596,7 @@ export const PseudotimeGlyphComponent = ({
             // Extract clean gene names from the selected gene values (format: sampleId_geneName)
             const geneNames = selectedGenes.map(geneValue => {
                 // Use label from HVG list when available
-                const geneInfo = highVariableGenes.find(g => g.value === geneValue);
+                const geneInfo = allHighVariableGenes.find(g => g.value === geneValue);
                 if (geneInfo) return geneInfo.label;
                 // Fallback: value pattern is `${sampleId}_${gene}`; sampleId may contain underscores, so take substring after last underscore
                 if (typeof geneValue === 'string' && geneValue.includes('_')) {
