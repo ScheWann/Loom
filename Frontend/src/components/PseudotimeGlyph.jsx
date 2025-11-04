@@ -859,6 +859,9 @@ export const PseudotimeGlyph = ({
                 ];
             }
 
+            // Calculate average expression for this gene (normalized between 0 and 1)
+            const avgExpression = geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length;
+
             // Draw custom curve through all points
             if (curvePoints.length > 1) {
                 // Configuration for curve behavior - can be customized based on needs
@@ -873,7 +876,7 @@ export const PseudotimeGlyph = ({
                 const customPath = generateCustomCurve(curvePoints, curveOptions);
 
                 if (customPath) {
-                    topSection.append("path")
+                    const curvePath = topSection.append("path")
                         .attr("d", customPath)
                         .attr("stroke", color)
                         .attr("stroke-width", 3)
@@ -881,23 +884,62 @@ export const PseudotimeGlyph = ({
                         .attr("opacity", 0.6)
                         .attr("stroke-linecap", "round")
                         .attr("stroke-linejoin", "round")
-                        .style("cursor", "pointer")
+                        .style("cursor", "pointer");
+
+                    // Create average expression radius indicator (initially hidden)
+                    // The angle is already constrained to upper half (π to 2π) by expressionScale
+                    const avgAngle = expressionScale(avgExpression);
+                    const avgEndX = centerX + Math.cos(avgAngle) * maxRadius;
+                    const avgEndY = centerY + Math.sin(avgAngle) * maxRadius;
+                    
+                    const avgRadiusIndicator = topSection.append("line")
+                        .attr("class", `avg-expression-radius-${geneIndex}`)
+                        .attr("x1", centerX)
+                        .attr("y1", centerY)
+                        .attr("x2", avgEndX)
+                        .attr("y2", avgEndY)
+                        .attr("stroke", color)
+                        .attr("stroke-width", 2)
+                        .attr("stroke-dasharray", "5,3")
+                        .attr("opacity", 0)
+                        .style("pointer-events", "none");
+
+                    // Add a small circle at the end of the radius to make it more visible
+                    const avgRadiusEndPoint = topSection.append("circle")
+                        .attr("class", `avg-expression-endpoint-${geneIndex}`)
+                        .attr("cx", avgEndX)
+                        .attr("cy", avgEndY)
+                        .attr("r", 3)
+                        .attr("fill", color)
+                        .attr("stroke", "#fff")
+                        .attr("stroke-width", 1)
+                        .attr("opacity", 0)
+                        .style("pointer-events", "none");
+
+                    curvePath
                         .on("mouseover", function (event) {
                             d3.select(this)
                                 .attr("stroke-width", 4)
                                 .attr("opacity", 1);
 
+                            // Show the average expression radius indicator
+                            avgRadiusIndicator
+                                .attr("opacity", 0.8);
+                            avgRadiusEndPoint
+                                .attr("opacity", 0.9);
+
                             const minExpression = Math.min(...geneInfo.expressions);
                             const maxExpression = Math.max(...geneInfo.expressions);
-                            const avgExpression = (geneInfo.expressions.reduce((a, b) => a + b, 0) / geneInfo.expressions.length).toFixed(2);
-                            const timeSpan = `${geneInfo.timePoints[0]} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1]}`;
+                            const avgExpressionFormatted = avgExpression.toFixed(2);
+                            const timeSpan = `${geneInfo.timePoints[0].toFixed(4)} - ${geneInfo.timePoints[geneInfo.timePoints.length - 1].toFixed(4)}`;
 
                             tooltip.style("visibility", "visible")
                                 .html(`
                                 <div><strong>Gene Expression: ${geneInfo.gene}</strong></div>
                                 <div>Time span: ${timeSpan}</div>
                                 <div>Expression range: ${minExpression.toFixed(2)} - ${maxExpression.toFixed(2)}</div>
-                                <div>Average expression: ${avgExpression}</div>
+                                <div>Average expression: ${avgExpressionFormatted}</div>
+                                <div style="font-style: italic; color: #ccc; font-size: 11px;">Dashed line shows average expression level</div>
                             `);
                             positionTooltip(event, tooltip);
                         })
@@ -908,6 +950,13 @@ export const PseudotimeGlyph = ({
                             d3.select(this)
                                 .attr("stroke-width", 3)
                                 .attr("opacity", 0.6);
+                            
+                            // Hide the average expression radius indicator
+                            avgRadiusIndicator
+                                .attr("opacity", 0);
+                            avgRadiusEndPoint
+                                .attr("opacity", 0);
+                            
                             tooltip.style("visibility", "hidden");
                         });
                 }
@@ -928,12 +977,21 @@ export const PseudotimeGlyph = ({
                             .attr("r", 5)
                             .attr("opacity", 1);
 
+                        // Show the average expression radius indicator
+                        topSection.select(`.avg-expression-radius-${geneIndex}`)
+                            .attr("opacity", 0.8);
+                        topSection.select(`.avg-expression-endpoint-${geneIndex}`)
+                            .attr("opacity", 0.9);
+
+                        const avgExpressionFormatted = avgExpression.toFixed(2);
                         tooltip.style("visibility", "visible")
                             .html(`
                                 <div><strong>Gene Expression Point</strong></div>
                                 <div>Gene: ${geneInfo.gene}</div>
                                 <div>Time: ${point.timePoint.toFixed(2)}</div>
                                 <div>Expression: ${point.expression.toFixed(3)}</div>
+                                <div>Average expression: ${avgExpressionFormatted}</div>
+                                <div style="font-style: italic; color: #ccc; font-size: 11px;">Dashed line shows average expression level</div>
                             `);
                         positionTooltip(event, tooltip);
                     })
@@ -944,6 +1002,13 @@ export const PseudotimeGlyph = ({
                         d3.select(this)
                             .attr("r", 3)
                             .attr("opacity", 0.6);
+                        
+                        // Hide the average expression radius indicator
+                        topSection.select(`.avg-expression-radius-${geneIndex}`)
+                            .attr("opacity", 0);
+                        topSection.select(`.avg-expression-endpoint-${geneIndex}`)
+                            .attr("opacity", 0);
+                        
                         tooltip.style("visibility", "hidden");
                     });
             });
