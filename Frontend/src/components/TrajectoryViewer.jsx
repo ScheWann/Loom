@@ -14,13 +14,14 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     const [selectedTrajectory, setSelectedTrajectory] = useState(null);
     const [availableGenes, setAvailableGenes] = useState([]);
     const [selectedGenes, setSelectedGenes] = useState([]);
-    const [trajectoryData, setTrajectoryData] = useState({});
+    const [trajectoryDataSets, setTrajectoryDataSets] = useState([]); // Array of trajectory datasets
     const [loading, setLoading] = useState(false);
     const [regionsLoading, setRegionsLoading] = useState(false);
     const [trajectoriesLoading, setTrajectoriesLoading] = useState(false);
     const [genesLoading, setGenesLoading] = useState(false);
     const containerRef = useRef();
-    const [containerHeight, setContainerHeight] = useState(400);
+    const chartContainerRef = useRef();
+    const [chartContainerHeight, setChartContainerHeight] = useState(300);
 
     // Throttle mouse move events to prevent excessive updates
     const lastMouseMoveRef = useRef({ time: 0, position: null, xValue: null });
@@ -34,22 +35,32 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         }
     }), [selectedSample]);
 
-    // Track container height for dynamic sizing
+    // Track chart container height dynamically
     useEffect(() => {
-        const updateHeight = () => {
-            if (containerRef.current) {
-                const rect = containerRef.current.getBoundingClientRect();
-                setContainerHeight(rect.height);
+        const updateChartHeight = () => {
+            if (chartContainerRef.current) {
+                const rect = chartContainerRef.current.getBoundingClientRect();
+                const newHeight = Math.max(rect.height, 200); // Minimum height of 200px
+                setChartContainerHeight(newHeight);
             }
         };
 
-        updateHeight();
-        const resizeObserver = new ResizeObserver(updateHeight);
-        if (containerRef.current) {
-            resizeObserver.observe(containerRef.current);
+        // Use a slight delay to avoid feedback loops
+        const timeoutId = setTimeout(updateChartHeight, 100);
+        
+        const resizeObserver = new ResizeObserver(() => {
+            clearTimeout(timeoutId);
+            setTimeout(updateChartHeight, 100);
+        });
+        
+        if (chartContainerRef.current) {
+            resizeObserver.observe(chartContainerRef.current);
         }
 
-        return () => resizeObserver.disconnect();
+        return () => {
+            clearTimeout(timeoutId);
+            resizeObserver.disconnect();
+        };
     }, []);
 
     // Use passed samples and update selected sample when sampleId changes
@@ -69,14 +80,14 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
             setSelectedRegion(null);
             setSelectedTrajectory(null);
             setSelectedGenes([]);
-            setTrajectoryData({});
+            setTrajectoryDataSets([]);
             fetchRegions(selectedSample);
         } else {
             setAvailableRegions([]);
             setSelectedRegion(null);
             setSelectedTrajectory(null);
             setSelectedGenes([]);
-            setTrajectoryData({});
+            setTrajectoryDataSets([]);
         }
     }, [selectedSample]);
 
@@ -86,13 +97,13 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
             // Clear downstream selections
             setSelectedTrajectory(null);
             setSelectedGenes([]);
-            setTrajectoryData({});
+            // Don't clear trajectoryDataSets here - keep existing charts
             fetchTrajectories(selectedSample, selectedRegion);
         } else {
             setAvailableTrajectories([]);
             setSelectedTrajectory(null);
             setSelectedGenes([]);
-            setTrajectoryData({});
+            // Don't clear trajectoryDataSets here either
         }
     }, [selectedSample, selectedRegion]);
 
@@ -101,12 +112,12 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         if (selectedSample && selectedRegion && selectedTrajectory) {
             // Clear downstream selections
             setSelectedGenes([]);
-            setTrajectoryData({});
+            // Don't clear trajectoryDataSets here - keep existing charts
             fetchGenes(selectedSample, selectedRegion, selectedTrajectory);
         } else {
             setAvailableGenes([]);
             setSelectedGenes([]);
-            setTrajectoryData({});
+            // Don't clear trajectoryDataSets here either
         }
     }, [selectedSample, selectedRegion, selectedTrajectory]);
 
@@ -186,10 +197,22 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 }),
             });
             const data = await response.json();
-            setTrajectoryData(data);
+            
+            // Create a new dataset entry
+            const newDataset = {
+                id: Date.now(), // Simple unique ID
+                sample_id,
+                region_id,
+                trajectory_id,
+                genes: [...genes],
+                data,
+                title: `${genes.join(', ')} (${sample_id} - Region ${region_id} - Trajectory ${trajectory_id})`
+            };
+            
+            // Add to existing datasets
+            setTrajectoryDataSets(prev => [...prev, newDataset]);
         } catch (error) {
             console.error("Error fetching trajectory data:", error);
-            setTrajectoryData({});
         } finally {
             setLoading(false);
         }
@@ -219,6 +242,9 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         if (onGeneSelection && kosaraDisplayEnabled) {
             onGeneSelection([...selectedGenes], selectedSample);
         }
+        
+        // Clear the gene selection for next input
+        setSelectedGenes([]);
     };
 
     // Flatten sample options for Select component
@@ -233,13 +259,19 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         }
     });
 
-    // Calculate chart height - now always the same since we use one chart
-    const getChartHeight = () => {
-        if (Object.keys(trajectoryData).length === 0) return containerHeight;
-        return containerHeight - 32; // Account for controls
+    // Use dynamic chart height based on available space
+    const chartHeight = chartContainerHeight;
+    
+    // Calculate individual chart height based on number of charts
+    const getIndividualChartHeight = () => {
+        if (trajectoryDataSets.length === 0) return chartHeight;
+        const padding = 4; // Container padding
+        const gap = 0; // Gap between charts
+        const totalGaps = (trajectoryDataSets.length - 1) * gap;
+        const availableHeight = chartHeight - (padding * 2) - totalGaps;
+        const heightPerChart = Math.max(availableHeight / trajectoryDataSets.length, 200); // Minimum 200px per chart
+        return heightPerChart;
     };
-
-    const chartHeight = getChartHeight();
 
     // Handle mouse movement over trajectory chart with throttling
     const handleTrajectoryMouseMove = useCallback((normalizedPosition, xValue) => {
@@ -282,42 +314,60 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     }, [onTrajectoryGuidelineChange]);
 
     // Get selected gene names for chart display
-    const selectedGeneNames = selectedGenes.filter(gene => trajectoryData[gene]);
+    const selectedGeneNames = selectedGenes.filter(gene => 
+        trajectoryDataSets.length > 0 && 
+        trajectoryDataSets[0].data && 
+        trajectoryDataSets[0].data[gene]
+    );
 
-    // Memoize LineChart props to prevent unnecessary re-renders
-    const singleGeneChartProps = useMemo(() => ({
-        data: trajectoryData[selectedGeneNames[0]]?.data,
-        xAccessor: d => d.x,
-        yAccessor: d => d.y,
-        showErrorBands: true,
-        yMinAccessor: d => d.ymin,
-        yMaxAccessor: d => d.ymax,
-        margin: { top: 30, right: 20, bottom: 50, left: 60 },
-        lineColor: "#e74c3c",
-        errorBandOpacity: 0.3,
-        onMouseMove: handleTrajectoryMouseMove,
-        onMouseLeave: handleTrajectoryMouseLeave
-    }), [trajectoryData, selectedGeneNames, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
+    // Function to remove a trajectory dataset
+    const removeTrajectoryDataset = (datasetId) => {
+        setTrajectoryDataSets(prev => prev.filter(dataset => dataset.id !== datasetId));
+    };
 
-    const multiGeneChartProps = useMemo(() => ({
-        datasets: selectedGeneNames
-            .filter(gene => trajectoryData[gene])
-            .map(gene => ({
-                data: trajectoryData[gene].data,
+    // Function to create chart props for a specific dataset
+    const createChartProps = (dataset) => {
+        const { data, genes } = dataset;
+        const availableGenes = genes.filter(gene => data[gene]);
+        
+        if (availableGenes.length === 1) {
+            // Single gene chart
+            return {
+                data: data[availableGenes[0]]?.data,
                 xAccessor: d => d.x,
                 yAccessor: d => d.y,
+                showErrorBands: true,
                 yMinAccessor: d => d.ymin,
                 yMaxAccessor: d => d.ymax,
-                label: gene,
-                lineColor: undefined
-            })),
-        showErrorBands: true,
-        showLegend: true,
-        margin: { top: 30, right: 20, bottom: 40, left: 60 },
-        errorBandOpacity: 0.3,
-        onMouseMove: handleTrajectoryMouseMove,
-        onMouseLeave: handleTrajectoryMouseLeave
-    }), [trajectoryData, selectedGeneNames, handleTrajectoryMouseMove, handleTrajectoryMouseLeave]);
+                margin: { top: 30, right: 20, bottom: 50, left: 60 },
+                lineColor: "#e74c3c",
+                errorBandOpacity: 0.3,
+                onMouseMove: handleTrajectoryMouseMove,
+                onMouseLeave: handleTrajectoryMouseLeave
+            };
+        } else {
+            // Multi-gene chart
+            return {
+                datasets: availableGenes
+                    .filter(gene => data[gene])
+                    .map(gene => ({
+                        data: data[gene].data,
+                        xAccessor: d => d.x,
+                        yAccessor: d => d.y,
+                        yMinAccessor: d => d.ymin,
+                        yMaxAccessor: d => d.ymax,
+                        label: gene,
+                        lineColor: undefined
+                    })),
+                showErrorBands: true,
+                showLegend: true,
+                margin: { top: 30, right: 20, bottom: 40, left: 60 },
+                errorBandOpacity: 0.3,
+                onMouseMove: handleTrajectoryMouseMove,
+                onMouseLeave: handleTrajectoryMouseLeave
+            };
+        }
+    };
 
 
     return (
@@ -437,6 +487,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
             {/* Charts Container */}
             <div
+                ref={chartContainerRef}
                 style={{
                     flex: 1,
                     overflowY: "hidden",
@@ -444,44 +495,88 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    minHeight: "200px",
                 }}
             >
                 {loading && (
                     <Spin size="large" />
                 )}
 
-                {!loading && Object.keys(trajectoryData).length === 0 && (
+                {!loading && trajectoryDataSets.length === 0 && (
                     <Empty
                         description="Select sample, region, trajectory, and genes, then click Add to view trajectory analysis"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                 )}
 
-                {!loading && Object.keys(trajectoryData).length > 0 && selectedGeneNames.length === 0 && (
-                    <Empty
-                        description="No trajectory data available for selected genes"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    />
-                )}
-
-                {!loading && selectedGeneNames.length > 0 && Object.keys(trajectoryData).length > 0 && (
+                {!loading && trajectoryDataSets.length > 0 && (
                     <div
                         style={{
-                            backgroundColor: "#f9f9f9",
-                            height: `${chartHeight}px`,
+                            width: "100%",
+                            height: "100%",
+                            overflowY: "auto",
                             display: "flex",
                             flexDirection: "column",
-                            width: "100%",
-                            borderRadius: "8px",
+                            gap: "16px",
+                            padding: "8px",
                         }}
                     >
-                        {selectedGeneNames.length === 1 ? (
-                            // Single gene: use original approach
-                            <LineChart {...singleGeneChartProps} />
-                        ) : (
-                            // Multiple genes: combine into single chart
-                            <LineChart {...multiGeneChartProps} />
-                        )}
+                        {trajectoryDataSets.map((dataset) => {
+                            const availableGenes = dataset.genes.filter(gene => dataset.data[gene]);
+                            if (availableGenes.length === 0) return null;
+                            
+                            const chartProps = createChartProps(dataset);
+                            const isSingleGene = availableGenes.length === 1;
+                            const individualChartHeight = getIndividualChartHeight();
+                            
+                            return (
+                                <div
+                                    key={dataset.id}
+                                    style={{
+                                        backgroundColor: "#f9f9f9",
+                                        minHeight: `${individualChartHeight}px`,
+                                        height: `${individualChartHeight}px`,
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        borderRadius: "8px",
+                                        overflow: "hidden",
+                                        position: "relative",
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    {/* Close button positioned absolutely in upper right corner */}
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        onClick={() => removeTrajectoryDataset(dataset.id)}
+                                        style={{
+                                            position: "absolute",
+                                            top: "4px",
+                                            right: "4px",
+                                            padding: "0 4px",
+                                            height: "20px",
+                                            minWidth: "20px",
+                                            fontSize: "14px",
+                                            color: "#999",
+                                            backgroundColor: "rgba(255, 255, 255, 0.8)",
+                                            borderRadius: "50%",
+                                            zIndex: 10,
+                                        }}
+                                    >
+                                        ×
+                                    </Button>
+                                    
+                                    {/* Chart content */}
+                                    <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+                                        {isSingleGene ? (
+                                            <LineChart {...chartProps} />
+                                        ) : (
+                                            <LineChart {...chartProps} />
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
