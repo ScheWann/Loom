@@ -331,16 +331,20 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         const availableGenes = genes.filter(gene => data[gene]);
         
         if (availableGenes.length === 1) {
-            // Single gene chart
+            // Single gene chart - use datasets format to ensure label is passed
             return {
-                data: data[availableGenes[0]]?.data,
-                xAccessor: d => d.x,
-                yAccessor: d => d.y,
+                datasets: [{
+                    data: data[availableGenes[0]]?.data,
+                    xAccessor: d => d.x,
+                    yAccessor: d => d.y,
+                    yMinAccessor: d => d.ymin,
+                    yMaxAccessor: d => d.ymax,
+                    label: availableGenes[0],
+                    lineColor: "#e74c3c"
+                }],
                 showErrorBands: true,
-                yMinAccessor: d => d.ymin,
-                yMaxAccessor: d => d.ymax,
+                showLegend: true,
                 margin: { top: 30, right: 20, bottom: 50, left: 60 },
-                lineColor: "#e74c3c",
                 errorBandOpacity: 0.3,
                 onMouseMove: handleTrajectoryMouseMove,
                 onMouseLeave: handleTrajectoryMouseLeave

@@ -89,7 +89,7 @@ export const LineChart = ({
     d3.select(svgRef.current).selectAll("*").remove();
 
     // Calculate space needed for legend
-    const legendHeight = (showLegend && allDatasets.length > 1) ? 25 : 0; // Space for legend
+    const legendHeight = showLegend ? 25 : 0; // Space for legend
 
     // Use full parent height for SVG
     const svgHeight = dimensions.height;
@@ -226,8 +226,8 @@ export const LineChart = ({
       .attr("font-weight", "bold")
       .text("Gene Expression Trajectories");
 
-    // Add legend for multiple datasets
-    if (showLegend && allDatasets.length > 1) {
+    // Add legend for datasets
+    if (showLegend) {
       const legend = svg.append("g")
         .attr("transform", `translate(${adjustedMargin.left}, ${svgHeight - legendHeight - 5})`);
 
