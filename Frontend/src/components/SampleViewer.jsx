@@ -1534,25 +1534,27 @@ export const SampleViewer = ({
                             analysisResult: result
                         };
 
-                        // Update the area with the new trajectory
-                        const updatedAreas = customAreas.map(area => {
-                            if (area.id === selectedAreaForEdit.id) {
-                                const trajectories = area.trajectories || [];
-                                return {
-                                    ...area,
-                                    trajectories: [...trajectories, newTrajectory]
-                                };
+                        // Update the area with the new trajectory using functional update to preserve any areas added during analysis
+                        setCustomAreas(prevAreas => {
+                            const updatedAreas = prevAreas.map(area => {
+                                if (area.id === selectedAreaForEdit.id) {
+                                    const trajectories = area.trajectories || [];
+                                    return {
+                                        ...area,
+                                        trajectories: [...trajectories, newTrajectory]
+                                    };
+                                }
+                                return area;
+                            });
+                            
+                            // Update selected area for edit if it's still open
+                            if (selectedAreaForEdit && selectedAreaForEdit.id === selectedAreaForEdit.id) {
+                                const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
+                                setSelectedAreaForEdit(updatedSelectedArea);
                             }
-                            return area;
+                            
+                            return updatedAreas;
                         });
-
-                        setCustomAreas(updatedAreas);
-
-                        // Update selected area for edit if it's still open
-                        if (selectedAreaForEdit && selectedAreaForEdit.id === selectedAreaForEdit.id) {
-                            const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
-                            setSelectedAreaForEdit(updatedSelectedArea);
-                        }
 
                         // Exit trajectory mode and reset only after successful analysis
                         setIsTrajectoryMode(false);
@@ -1590,7 +1592,7 @@ export const SampleViewer = ({
                         t.end === trajectoryEnd)
                 ));
             });
-    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, customAreas, setCustomAreas]);
+    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, onTrajectoryAnalysisComplete]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops
     const getSampleAtCoordinate = useCallback((x, y) => {
