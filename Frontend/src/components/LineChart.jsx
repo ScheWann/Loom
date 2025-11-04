@@ -112,7 +112,6 @@ export const LineChart = ({
     const allYMaxValues = [];
 
     allDatasets.forEach(dataset => {
-      console.log(dataset);
       if (dataset.data && dataset.data.length > 0) {
         const xValues = dataset.data.map(dataset.xAccessor);
         const yValues = dataset.data.map(dataset.yAccessor);
