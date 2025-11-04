@@ -3510,11 +3510,14 @@ export const SampleViewer = ({
                             } else if (layerId.startsWith('single-gene-expression-')) {
                                 const sampleId = layerId.replace('single-gene-expression-', '');
                                 const { id, cell_type, expression } = info.object || {};
+                                // Get the gene name from the stored single gene data
+                                const geneName = singleGeneDataBySample[sampleId]?.geneName;
                                 setHoveredCell({
                                     id,
                                     sampleId,
                                     cell_type,
                                     expression,
+                                    geneName,  // Add gene name to the hovered cell info
                                     x: info.x,
                                     y: info.y
                                 });
@@ -3574,14 +3577,17 @@ export const SampleViewer = ({
                             <>
                                 <div><strong>Sample:</strong> {hoveredCell.sampleId}</div>
                                 <div><strong>Cell Type:</strong> {hoveredCell.cell_type}</div>
+                                {hoveredCell.geneName && (
+                                    <div><strong>Gene:</strong> {hoveredCell.geneName}</div>
+                                )}
                                 {hoveredCell.expression !== undefined && (
-                                    <div><strong>Expression:</strong> {Number(hoveredCell.expression).toFixed(5)}</div>
+                                    <div><strong>Expression:</strong> {Number(hoveredCell.expression).toFixed(3)}</div>
                                 )}
                                 {hoveredCell.total_expression !== undefined && (
-                                    <div><strong>Total Expression:</strong> {Number(hoveredCell.total_expression).toFixed(5)}</div>
+                                    <div><strong>Total Expression:</strong> {Number(hoveredCell.total_expression).toFixed(3)}</div>
                                 )}
                                 {hoveredCell.ratios && Object.entries(hoveredCell.ratios).map(([gene, expression]) => (
-                                    <div key={gene}><strong>{gene}:</strong> {Number(expression).toFixed(5) * 100}%</div>
+                                    <div key={gene}><strong>{gene}:</strong> {Number(expression).toFixed(3) * 100}%</div>
                                 ))}
                             </>
                         ) : (
