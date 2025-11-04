@@ -64,7 +64,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                 const data = await response.json();
                 if (onKosaraData && data && data[sampleId]) {
                     // Mark this as single gene data for proper handling
-                    onKosaraData(sampleId, data[sampleId], 'single_gene');
+                    onKosaraData(sampleId, data[sampleId], 'single_gene', selectedGenes[0]);
                 } else if (onKosaraData) {
                     onKosaraData(sampleId, []);
                 }

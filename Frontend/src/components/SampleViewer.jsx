@@ -76,7 +76,7 @@ export const SampleViewer = ({
     const [analyzingTrajectories, setAnalyzingTrajectories] = useState([]); // [{ areaId, start, end, width, name }]
 
     // Single gene expression data per sample for sequential coloring
-    const [singleGeneDataBySample, setSingleGeneDataBySample] = useState({}); // { sampleId: { cells: [...], min_expression: ..., max_expression: ... } }
+    const [singleGeneDataBySample, setSingleGeneDataBySample] = useState({}); // { sampleId: { geneName: string, cells: [...], min_expression: ..., max_expression: ... } }
 
     // Drawing state
     const [isDrawing, setIsDrawing] = useState(false);
@@ -284,7 +284,10 @@ export const SampleViewer = ({
             if (data && data[sampleId]) {
                 setSingleGeneDataBySample(prev => ({
                     ...prev,
-                    [sampleId]: data[sampleId]
+                    [sampleId]: {
+                        ...data[sampleId],
+                        geneName: geneName  // Store which gene this data is for
+                    }
                 }));
 
                 // Set the sample to gene mode
@@ -334,12 +337,15 @@ export const SampleViewer = ({
     };
 
     // Receive data from GeneList and store & switch to gene mode
-    const handleKosaraData = useCallback((sampleId, dataArray, dataType = 'kosara') => {
+    const handleKosaraData = useCallback((sampleId, dataArray, dataType = 'kosara', geneName = null) => {
         if (dataType === 'single_gene') {
             // Handle single gene expression data
             setSingleGeneDataBySample(prev => ({
                 ...prev,
-                [sampleId]: dataArray
+                [sampleId]: {
+                    ...dataArray,
+                    geneName: geneName  // Store which gene this data is for
+                }
             }));
             // Clear kosara data for this sample since we're using single gene mode
             setKosaraDataBySample(prev => {
@@ -2025,9 +2031,9 @@ export const SampleViewer = ({
                     getPosition: d => [d.x, d.y],
                     getRadius: dynamicRadius,
                     getFillColor: d => {
-                        // Get the selected gene and its color from the color map
-                        const selectedGene = selectedGenes[0]; // For single gene mode
-                        const baseColor = geneColorMap[selectedGene] || "#d73027";
+                        // Get the confirmed gene name from the stored data (not from selectedGenes which can change)
+                        const confirmedGeneName = singleGeneData.geneName;
+                        const baseColor = geneColorMap[confirmedGeneName] || "#d73027";
 
                         const color = getSequentialColor(
                             d.expression,
@@ -2045,7 +2051,7 @@ export const SampleViewer = ({
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: {
                         data: [singleGeneData, sampleId],
-                        getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression, geneColorMap],
+                        getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression, singleGeneData.geneName, geneColorMap[singleGeneData.geneName]],
                         getRadius: [sampleId, mainViewState?.zoom]
                     },
                     transitions: {
