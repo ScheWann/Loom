@@ -30,6 +30,7 @@ from process import (
     load_adata_to_cache,
     clear_adata_cache,
     clear_trajectory_analysis_cache,
+    clear_all_caches,
     get_trajectory_gene_expression,
     get_direct_slingshot_data,
     analyze_trajectory,
@@ -109,6 +110,19 @@ def clear_trajectory_analysis_cache_route():
     try:
         clear_trajectory_analysis_cache()
         return jsonify({"status": "success", "message": "Trajectory analysis cache cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/clear_all_caches", methods=["POST"])
+def clear_all_caches_route():
+    """
+    Clear all caches when the frontend page refreshes.
+    This ensures drawing areas and analyzed trajectories are removed.
+    """
+    try:
+        clear_all_caches()
+        return jsonify({"status": "success", "message": "All caches cleared"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -67,7 +67,21 @@ function App() {
   // Ref for TrajectoryViewer to call refresh
   const trajectoryViewerRef = useRef(null);
 
+  // Clear all caches on initial page load
   useEffect(() => {
+    const clearAllCachesOnMount = async () => {
+      try {
+        await fetch("/api/clear_all_caches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        console.log("All caches cleared on page load");
+      } catch (error) {
+        console.error("Error clearing caches on page load:", error);
+      }
+    };
+    
+    clearAllCachesOnMount();
     fetchSamplesOption();
   }, []);
 
