@@ -986,7 +986,6 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             raise ValueError(f"No gene expression data available for sample {sample_id}")
 
         sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
-
         sc.pp.normalize_total(adata)
         sc.pp.log1p(adata)
         sc.pp.scale(adata, max_value=10)
@@ -1618,7 +1617,7 @@ def convert_arrow_width_to_16um_pixels(sample_id, arrow_width_frontend_pixels):
     arrow_width_fullres_pixels = arrow_width_frontend_pixels / current_scale_factor
     
     # Construct path to 16µm scalefactors
-    python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+    python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
     scalefactors_16um_path = os.path.join(
         python_dir, 
         f"{base_sample_id}", 
@@ -1717,7 +1716,7 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
         y0 = float(np.median(D[:,1]))
         
         # Load 16µm scalefactors
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
         scalefactors_16um_path = os.path.join(python_dir, base_sample_id, "binned_outputs", "square_016um", "spatial", "scalefactors_json.json")
         
         with open(scalefactors_16um_path, 'r') as f:
@@ -1866,7 +1865,7 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         arrow_width_fullres_pixels = arrow_width_pixels / s
         
         # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Python")
+        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
         scalefactors_16um_path = os.path.join(python_dir, base_sample_id, "binned_outputs", "square_016um", "spatial", "scalefactors_json.json")
         
         with open(scalefactors_16um_path, 'r') as f:
