@@ -970,9 +970,7 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
     
     scale_info = sample_info["scales"][scale]
     
-    # Check adata_path
     if "adata_path" in scale_info:
-        # Get cached AnnData
         adata = get_cached_adata(sample_id)
         
         if cell_ids is not None:
@@ -980,16 +978,26 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             if hasattr(cell_ids, '__iter__') and not isinstance(cell_ids, str):
                 cell_ids = [str(cell_id) for cell_id in cell_ids]
             else:
-                cell_ids = str(cell_ids)
+                cell_ids = [str(cell_ids)]
             adata = adata[cell_ids].copy()
         else:
-            raise ValueError(f"No gene expression data available for sample {sample_id}")
+            raise ValueError(f"No cell_ids provided for sample {sample_id}")
 
-        sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
-        sc.pp.normalize_total(adata)
-        sc.pp.log1p(adata)
+        sc.pp.filter_genes(adata, min_cells=1)
+        sc.pp.filter_cells(adata, min_genes=50)
+
+        print(adata)
+        n_top_genes = min(1000, adata.n_vars)
+        try:
+            if 'counts' in adata.layers:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
+            else:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat")
+        except Exception:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
+
         sc.pp.scale(adata, max_value=10)
-
+        
         # Add data quality checks
         if adata.n_obs < 10:
             raise ValueError(f"Sample {sample_id} has too few cells ({adata.n_obs}) for UMAP analysis")
@@ -1997,8 +2005,17 @@ def get_highly_variable_genes(sample_ids, cell_ids=None, top_n=20):
                     # Use a lower n_top_genes if we have fewer genes than usual
                     n_top_genes = min(2000, adata_roi.n_vars // 2) if adata_roi.n_vars < 4000 else 2000
                     
+                    sc.pp.filter_genes(adata, min_cells=1)
+                    sc.pp.filter_cells(adata, min_genes=50)
+                    
                     # Calculate highly variable genes for the ROI
-                    sc.pp.highly_variable_genes(adata_roi, n_top_genes=n_top_genes, flavor="seurat_v3")
+                    try:
+                        if 'counts' in adata.layers:
+                            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
+                        else:
+                            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat")
+                    except Exception:
+                            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
                     
                     # Get highly variable genes
                     if 'highly_variable' in adata_roi.var.columns:
