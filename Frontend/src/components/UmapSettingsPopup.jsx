@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Input, Button, AutoComplete, Select } from 'antd';
+import { Input, Button, AutoComplete, Select, message } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 
 export const UmapSettingsPopup = ({
@@ -270,19 +270,26 @@ export const UmapSettingsPopup = ({
 
       const data = await response.json();
 
-      if (data.error) {
-        throw new Error(data.error);
+      if (data.status === 'error') {
+        message.error(`UMAP update failed: ${data.message}`);
+        throw new Error(data.message);
       }
 
-      // Call the parent callback with new data, title, settings, and name
-      onUpdateSettings(data, newAdataUmapTitle, settings, umapName);
+      if (data.status === 'success') {
+        message.success('UMAP updated successfully');
+        // Call the parent callback with new data, title, settings, and name
+        onUpdateSettings(data.data, newAdataUmapTitle, settings, umapName);
+      } else {
+        // Fallback for unexpected response format
+        throw new Error('Unexpected response format from server');
+      }
 
       // Close the popup
       setVisible(false);
 
     } catch (error) {
       console.error('Error updating UMAP:', error);
-      alert(`Failed to update UMAP: ${error.message}`);
+      message.error(`Failed to update UMAP: ${error.message}`);
     } finally {
       setLoading(false);
     }

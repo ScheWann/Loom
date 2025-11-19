@@ -1895,19 +1895,28 @@ export const SampleViewer = ({
             })
         })
             .then(res => res.json())
-            .then(data => {
-                // No need to filter data since backend only returns data for specified cells
-                setUmapDataSets(prev =>
-                    prev.map(dataset =>
-                        dataset.id === umapId
-                            ? { ...dataset, data: data, loading: false }
-                            : dataset
-                    )
-                );
+            .then(response => {
+                if (response.status === 'success') {
+                    // Success case - use the data from response.data
+                    setUmapDataSets(prev =>
+                        prev.map(dataset =>
+                            dataset.id === umapId
+                                ? { ...dataset, data: response.data, loading: false }
+                                : dataset
+                        )
+                    );
+                    message.success('UMAP analysis completed successfully');
+                } else {
+                    // Error case - show error message and remove failed dataset
+                    console.error('UMAP generation failed:', response.message);
+                    message.error(`UMAP generation failed: ${response.message}`);
+                    setUmapDataSets(prev => prev.filter(dataset => dataset.id !== umapId));
+                }
                 setUmapLoading(false);
             })
             .catch(error => {
                 console.error('Error generating UMAP:', error);
+                message.error(`Error generating UMAP: ${error.message}`);
 
                 // Remove the failed dataset entry
                 setUmapDataSets(prev => prev.filter(dataset => dataset.id !== umapId));

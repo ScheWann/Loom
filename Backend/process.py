@@ -958,19 +958,34 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
     - adata_umap_title: Title of the UMAP analysis
 
     Returns:
-    - List of UMAP data points
+    - Dictionary with 'status', 'message', and 'data' fields
     """
-    base_sample_id, scale = sample_id.rsplit("_", 1)
-    if base_sample_id not in SAMPLES:
-        raise ValueError(f"Sample {base_sample_id} not found")
-    
-    sample_info = SAMPLES[base_sample_id]
-    if "scales" not in sample_info or scale not in sample_info["scales"]:
-        raise ValueError(f"Scale {scale} not found for sample {base_sample_id}")
-    
-    scale_info = sample_info["scales"][scale]
-    
-    if "adata_path" in scale_info:
+    try:
+        base_sample_id, scale = sample_id.rsplit("_", 1)
+        if base_sample_id not in SAMPLES:
+            return {
+                "status": "error",
+                "message": f"Sample {base_sample_id} not found",
+                "data": []
+            }
+        
+        sample_info = SAMPLES[base_sample_id]
+        if "scales" not in sample_info or scale not in sample_info["scales"]:
+            return {
+                "status": "error",
+                "message": f"Scale {scale} not found for sample {base_sample_id}",
+                "data": []
+            }
+        
+        scale_info = sample_info["scales"][scale]
+        
+        if "adata_path" not in scale_info:
+            return {
+                "status": "error",
+                "message": f"No gene expression data available for sample {sample_id}",
+                "data": []
+            }
+        
         adata = get_cached_adata(sample_id)
         
         if cell_ids is not None:
@@ -981,12 +996,15 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 cell_ids = [str(cell_ids)]
             adata = adata[cell_ids].copy()
         else:
-            raise ValueError(f"No cell_ids provided for sample {sample_id}")
+            return {
+                "status": "error",
+                "message": f"No cell_ids provided for sample {sample_id}",
+                "data": []
+            }
 
         sc.pp.filter_genes(adata, min_cells=1)
         sc.pp.filter_cells(adata, min_genes=50)
 
-        print(adata)
         n_top_genes = min(1000, adata.n_vars)
         try:
             if 'counts' in adata.layers:
@@ -1000,10 +1018,18 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         
         # Add data quality checks
         if adata.n_obs < 10:
-            raise ValueError(f"Sample {sample_id} has too few cells ({adata.n_obs}) for UMAP analysis")
+            return {
+                "status": "error",
+                "message": f"Too few cells ({adata.n_obs}) for UMAP analysis",
+                "data": []
+            }
         
         if adata.n_vars < 50:
-            raise ValueError(f"Sample {sample_id} has too few genes ({adata.n_vars}) for UMAP analysis")
+            return {
+                "status": "error",
+                "message": f"Too few genes ({adata.n_vars}) for UMAP analysis",
+                "data": []
+            }
         
         # Check for excessive sparsity
         try:
@@ -1043,9 +1069,18 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         
         PROCESSED_ADATA_CACHE[sample_id][adata_umap_title] = adata
 
-        return results
-    else:
-        raise ValueError(f"No gene expression data available for sample {sample_id}")
+        return {
+            "status": "success",
+            "message": "UMAP analysis completed successfully",
+            "data": results
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Unexpected error during UMAP analysis: {str(e)}",
+            "data": []
+        }
 
 
 def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):

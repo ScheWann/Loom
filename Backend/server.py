@@ -237,18 +237,18 @@ def get_umap_data_route():
     n_pcas = request.json.get("n_pcas", 30)
     resolutions = request.json.get("resolutions", 1)
     adata_umap_title = request.json.get("adata_umap_title", None)
-    try:
-        umap_data = get_umap_data(
-            sample_id=sample_id,
-            cell_ids=cell_ids,
-            n_neighbors=n_neighbors,
-            n_pcas=n_pcas,
-            resolutions=resolutions,
-            adata_umap_title=adata_umap_title,
-        )
-        return jsonify(umap_data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    
+    result = get_umap_data(
+        sample_id=sample_id,
+        cell_ids=cell_ids,
+        n_neighbors=n_neighbors,
+        n_pcas=n_pcas,
+        resolutions=resolutions,
+        adata_umap_title=adata_umap_title,
+    )
+    
+    # Return the structured response directly
+    return jsonify(result)
 
 
 @app.route("/api/get_go_analysis", methods=["POST"])
