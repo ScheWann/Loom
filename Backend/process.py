@@ -1002,36 +1002,35 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 "data": []
             }
 
-        sc.pp.filter_genes(adata, min_cells=1)
+        sc.pp.filter_genes(adata, min_cells=5)
         sc.pp.filter_cells(adata, min_genes=50)
 
-        n_top_genes = min(1000, adata.n_vars)
-        try:
-            if 'counts' in adata.layers:
-                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
-            else:
-                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat")
-        except Exception:
-                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
-
-        sc.pp.scale(adata, max_value=10)
-        
-        # Add data quality checks
-        if adata.n_obs < 10:
+        if adata.n_obs < 200:
             return {
                 "status": "error",
-                "message": f"Too few cells ({adata.n_obs}) for UMAP analysis",
+                "message": f"Too few cells for UMAP analysis",
                 "data": []
             }
         
         if adata.n_vars < 50:
             return {
                 "status": "error",
-                "message": f"Too few genes ({adata.n_vars}) for UMAP analysis",
+                "message": f"Too few genes for UMAP analysis",
                 "data": []
             }
-        
-        # Check for excessive sparsity
+
+        n_top_genes = min(1000, adata.n_vars)
+
+        try:
+            if 'counts' in adata.layers:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
+            else:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat")
+        except Exception:
+            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
+
+        sc.pp.scale(adata, max_value=10)
+
         try:
             if issparse(adata.X):
                 sparsity = 1 - (adata.X.nnz / (adata.X.shape[0] * adata.X.shape[1]))
