@@ -39,6 +39,12 @@ export const PseudotimeGlyphComponent = ({
 
     // Ref to track which ROIs have been fetched
     const fetchedRoisRef = useRef(new Set());
+    
+    // Ref to prevent concurrent fetches
+    const isFetchingRef = useRef(false);
+    
+    // Ref to track the current fetch signature
+    const currentFetchSignatureRef = useRef('');
 
     // Memoize the sample IDs to prevent unnecessary re-fetching
     const memoizedSampleIds = useMemo(() => {
@@ -63,28 +69,45 @@ export const PseudotimeGlyphComponent = ({
     // Load highly variable genes for each ROI separately
     useEffect(() => {
         const fetchHighVariableGenesForRois = async () => {
+            // Create a signature for this fetch to prevent duplicate runs
+            const fetchSignature = `${memoizedSampleIds.join(',')}|${roiDataSets.map(r => `${r.roiKey}:${r.cellIds.length}`).join('|')}`;
+            
+            // Check if this exact fetch is already running or has been completed
+            if (isFetchingRef.current || currentFetchSignatureRef.current === fetchSignature) {
+                return;
+            }
+            
             if (memoizedSampleIds.length === 0 || roiDataSets.length === 0) {
                 setHighVariableGenesByRoi({});
                 fetchedRoisRef.current.clear();
+                currentFetchSignatureRef.current = '';
                 return;
             }
+            
+            isFetchingRef.current = true;
+            currentFetchSignatureRef.current = fetchSignature;
 
             const newHighVariableGenesByRoi = {};
             const fetchPromises = [];
+            let actualFetchCount = 0;
 
             // Fetch highly variable genes for each ROI separately
             for (const roiData of roiDataSets) {
-                const roiCacheKey = `${memoizedSampleIds.join(',')}|${roiData.roiKey}|${JSON.stringify([...roiData.cellIds].sort())}`;
+                // Use ROI-specific sample IDs for cache key to avoid redundant calls
+                const roiSampleIds = roiData.sampleId ? [roiData.sampleId] : memoizedSampleIds;
+                const roiCacheKey = `${roiSampleIds.join(',')}|${roiData.roiKey}|${JSON.stringify([...roiData.cellIds].sort())}`;
                 
                 // Skip if we've already fetched for this exact ROI
                 if (fetchedRoisRef.current.has(roiCacheKey)) {
                     continue;
                 }
+                
+                actualFetchCount++;
 
                 const fetchPromise = (async () => {
                     try {
                         const requestBody = {
-                            sample_ids: memoizedSampleIds,
+                            sample_ids: roiSampleIds,
                             top_n: 20,
                             cell_ids: roiData.cellIds
                         };
@@ -132,13 +155,28 @@ export const PseudotimeGlyphComponent = ({
             await Promise.all(fetchPromises);
 
             // Update state with new ROI-specific highly variable genes
-            setHighVariableGenesByRoi(prev => ({
-                ...prev,
-                ...newHighVariableGenesByRoi
-            }));
+            if (Object.keys(newHighVariableGenesByRoi).length > 0) {
+                setHighVariableGenesByRoi(prev => ({
+                    ...prev,
+                    ...newHighVariableGenesByRoi
+                }));
+            }
+            
+            isFetchingRef.current = false;
         };
 
-        fetchHighVariableGenesForRois();
+        fetchHighVariableGenesForRois().catch(error => {
+            console.error('Error in fetchHighVariableGenesForRois:', error);
+            isFetchingRef.current = false;
+            // Don't reset currentFetchSignatureRef on error to prevent retry loops
+        });
+        
+        // Cleanup function to reset state when dependencies change significantly
+        return () => {
+            if (isFetchingRef.current) {
+                isFetchingRef.current = false;
+            }
+        };
     }, [memoizedSampleIds, roiDataSets]); // Depend on roiDataSets instead of cacheKey
 
     // Combine all highly variable genes from all ROIs for the select options
