@@ -1573,6 +1573,8 @@ export const SampleViewer = ({
                         setTrajectoryName('');
                         setArrowCoverageArea(null);
 
+                        message.success('Trajectory analysis completed successfully');
+
                         // Notify parent that trajectory analysis is complete
                         if (onTrajectoryAnalysisComplete) {
                             // Get the sample ID and region name from the trajectory data
