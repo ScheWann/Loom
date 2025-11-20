@@ -2022,13 +2022,18 @@ export const SampleViewer = ({
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
+            // Check if sample is 16um to adjust base radius
+            const is16um = sample.name && sample.name.includes('16um');
+            const baseRadius = is16um ? 10 : 5;
+
+            // Make radius responsive to zoom: smaller when zoomed out, larger when zoomed in
+            const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
+            const dynamicRadius = baseRadius * zoomFactor;
+
             // If in gene mode and single gene data available, draw single gene expression visualization
             if (mode === 'genes' && singleGeneDataBySample[sampleId]?.cells?.length > 0) {
                 const singleGeneData = singleGeneDataBySample[sampleId];
                 const offset = sampleOffsets[sampleId] || [0, 0];
-                const baseRadius = 5;
-                const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
-                const dynamicRadius = baseRadius * zoomFactor;
 
                 const expressionData = singleGeneData.cells.map(cell => ({
                     ...cell,
@@ -2040,7 +2045,8 @@ export const SampleViewer = ({
                     id: `single-gene-expression-${sampleId}`,
                     data: expressionData,
                     getPosition: d => [d.x, d.y],
-                    getRadius: dynamicRadius,
+                    radiusScale: dynamicRadius,
+                    getRadius: 1,
                     getFillColor: d => {
                         // Get the confirmed gene name from the stored data (not from selectedGenes which can change)
                         const confirmedGeneName = singleGeneData.geneName;
@@ -2059,11 +2065,12 @@ export const SampleViewer = ({
                     pickable: true,
                     stroked: false,
                     radiusUnits: 'pixels',
+                    radiusMinPixels: 1,
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: {
                         data: [singleGeneData, sampleId],
                         getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression, singleGeneData.geneName, geneColorMap[singleGeneData.geneName]],
-                        getRadius: [sampleId, mainViewState?.zoom]
+                        getRadius: [sampleId]
                     },
                     transitions: {
                         getPosition: 0,
@@ -2081,16 +2088,18 @@ export const SampleViewer = ({
                         id: `single-gene-highlight-${sampleId}`,
                         data: highlightData,
                         getPosition: d => [d.x, d.y],
-                        getRadius: dynamicRadius * 1.6,
+                        radiusScale: dynamicRadius,
+                        getRadius: 1.6,
                         getFillColor: [255, 215, 0, 220],
                         getLineColor: [255, 140, 0, 255],
                         getLineWidth: 2,
                         lineWidthUnits: 'pixels',
                         radiusUnits: 'pixels',
+                        radiusMinPixels: 1,
                         pickable: false,
                         stroked: true,
                         updateTriggers: {
-                            getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
+                            getRadius: [sampleId, hoveredCluster],
                         },
                         parameters: { depthTest: false }
                     }));
@@ -2133,24 +2142,23 @@ export const SampleViewer = ({
                 const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
                 if (hoveredSet) {
                     const highlightData = (filteredCellData[sampleId] || []).filter(d => hoveredSet.has(String(d.id ?? d.cell_id)));
-                    const baseRadius = 5;
-                    const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
-                    const dynamicRadius = baseRadius * zoomFactor;
 
                     layers.push(new ScatterplotLayer({
                         id: `cells-highlight-${sampleId}`,
                         data: highlightData,
                         getPosition: d => [d.x, d.y],
-                        getRadius: dynamicRadius * 1.6,
+                        radiusScale: dynamicRadius,
+                        getRadius: 1.6,
                         getFillColor: [255, 215, 0, 220],
                         getLineColor: [255, 140, 0, 255],
                         getLineWidth: 2,
                         lineWidthUnits: 'pixels',
                         radiusUnits: 'pixels',
+                        radiusMinPixels: 1,
                         pickable: false,
                         stroked: true,
                         updateTriggers: {
-                            getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
+                            getRadius: [sampleId, hoveredCluster],
                         },
                         parameters: { depthTest: false }
                     }));
@@ -2161,11 +2169,6 @@ export const SampleViewer = ({
 
             // Otherwise, default cell scatter for cell type highlighting
             const cellData = filteredCellData[sampleId] || [];
-            const baseRadius = 5;
-            // Make radius responsive to zoom: smaller when zoomed out, larger when zoomed in
-            const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
-            const dynamicRadius = baseRadius * zoomFactor;
-
             const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
 
             const hasConfirmedGeneData = (singleGeneDataBySample[sampleId]?.cells?.length > 0) || (kosaraDataBySample[sampleId]?.length > 0);
@@ -2177,13 +2180,14 @@ export const SampleViewer = ({
                 id: `cells-${sampleId}`,
                 data: cellData,
                 getPosition: d => [d.x, d.y],
+                radiusScale: dynamicRadius,
                 getRadius: d => {
                     const localId = d.id ?? d.cell_id;
                     const isHoveredSample = !!hoveredSet;
                     if (isHoveredSample && hoveredSet.has(String(localId))) {
-                        return dynamicRadius * 1.5;
+                        return 1.5;
                     }
-                    return dynamicRadius;
+                    return 1;
                 },
                 getFillColor: d => {
                     const cellType = d.cell_type;
@@ -2231,12 +2235,13 @@ export const SampleViewer = ({
                 lineWidthUnits: 'pixels',
                 pickable: true,
                 radiusUnits: 'pixels',
+                radiusMinPixels: 1,
                 stroked: true,
                 filled: (!!hoveredSet) || (shouldShowCellTypes && selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
                     getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId, shouldShowCellTypes],
                     getLineColor: [hoveredCluster, sampleId],
-                    getRadius: [sampleId, mainViewState?.zoom, hoveredCluster],
+                    getRadius: [sampleId, hoveredCluster],
                     getLineWidth: [hoveredCluster, sampleId],
                 },
                 transitions: {
