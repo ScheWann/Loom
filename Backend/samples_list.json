@@ -1,55 +1,43 @@
 {
     "skin_TXK6Z4X_A1": {
         "id": "skin_TXK6Z4X_A1",
-        "name": "skin_TXK6Z4X_A1(Example)",
+        "name": "skin_TXK6Z4X_A1",
         "scales": {
             "2um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-A1_2um/skin_TXK6Z4X_A1_2um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-A1_2um/stardist/he.tiff",
-                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_2um/H1-TXK6Z4X-A1_2um_lite.jpeg",
-                "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_horizontal_non_random.csv",
-                "vertical_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_vertical_non_random.csv"
+                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_2um/H1-TXK6Z4X-A1_2um_lite.jpeg"
             },
             "8um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-A1_8um/skin_TXK6Z4X_A1_8um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-A1_8um/stardist/he.tiff",
-                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_8um/H1-TXK6Z4X-A1_8um_lite.jpeg",
-                "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_horizontal_non_random.csv",
-                "vertical_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_vertical_non_random.csv"
+                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_8um/H1-TXK6Z4X-A1_8um_lite.jpeg"
             },
             "16um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-A1_16um/stardist/he.tiff",
-                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_16um/H1-TXK6Z4X-A1_16um_lite.jpeg",
-                "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_horizontal_non_random.csv",
-                "vertical_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-A1_16um/skin_TXK6Z4X_A1_16um_vertical_non_random.csv"
+                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-A1_16um/H1-TXK6Z4X-A1_16um_lite.jpeg"
             }
         }
     },
     "skin_TXK6Z4X_D1": {
         "id": "skin_TXK6Z4X_D1",
-        "name": "skin_TXK6Z4X_D1(Example)",
+        "name": "skin_TXK6Z4X_D1",
         "scales": {
             "2um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-D1_2um/skin_TXK6Z4X_D1_2um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-D1_2um/stardist/he.tiff",
-                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_2um/H1-TXK6Z4X-D1_2um_lite.jpeg",
-                "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-D1_2um/skin_TXK6Z4X_D1_2um_horizontal_non_random.csv",
-                "vertical_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-D1_2um/skin_TXK6Z4X_D1_2um_vertical_non_random.csv"
+                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_2um/H1-TXK6Z4X-D1_2um_lite.jpeg"
             },
             "8um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-D1_8um/skin_TXK6Z4X_D1_8um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-D1_8um/stardist/he.tiff",
-                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_8um/H1-TXK6Z4X-D1_8um_lite.jpeg",
-                "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-D1_8um/skin_TXK6Z4X_D1_8um_horizontal_non_random.csv",
-                "vertical_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-D1_8um/skin_TXK6Z4X_D1_8um_vertical_non_random.csv"
+                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_8um/H1-TXK6Z4X-D1_8um_lite.jpeg"
             },
             "16um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-D1_16um/skin_TXK6Z4X_D1_16um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-D1_16um/stardist/he.tiff",
-                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_16um/H1-TXK6Z4X-D1_16um_lite.jpeg",
-                "horizontal_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-D1_16um/skin_TXK6Z4X_D1_16um_horizontal_non_random.csv",
-                "vertical_non_random_gene_trajectory_expression_path": "../Example_Data/H1-TXK6Z4X-D1_16um/skin_TXK6Z4X_D1_16um_vertical_non_random.csv"
+                "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_16um/H1-TXK6Z4X-D1_16um_lite.jpeg"
             }
         }
     }
