@@ -1005,7 +1005,7 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         sc.pp.filter_genes(adata, min_cells=5)
         sc.pp.filter_cells(adata, min_genes=50)
 
-        if adata.n_obs < 200:
+        if adata.n_obs < 50:
             return {
                 "status": "error",
                 "message": f"Too few cells for UMAP analysis",
@@ -1022,12 +1022,13 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
         n_top_genes = min(1000, adata.n_vars)
 
         try:
-            if 'counts' in adata.layers:
-                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
-            else:
-                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat")
-        except Exception:
-            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
+            try:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat_v3")
+            except ValueError as e:
+                sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
+        except Exception as e:
+            print("HVG failed, using all genes")
+            adata.var['highly_variable'] = True
 
         sc.pp.scale(adata, max_value=10)
 
