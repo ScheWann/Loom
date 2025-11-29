@@ -1387,33 +1387,68 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     Returns:
     - List of gene expression data objects
     """
-    # Check if we have cached processed data
-    if sample_id not in PROCESSED_ADATA_CACHE:
-        raise ValueError(f"No cached data found for sample '{sample_id}'. Please run get_direct_slingshot_data first. Available samples: {list(PROCESSED_ADATA_CACHE.keys())}")
-    
-    # Look for the data using either the exact key or cluster-specific keys
-    adata = None
-    cache_key_used = None
-    
-    if adata_umap_title in PROCESSED_ADATA_CACHE[sample_id]:
-        adata = PROCESSED_ADATA_CACHE[sample_id][adata_umap_title]
-        cache_key_used = adata_umap_title
-    else:
-        # Look for cluster-specific keys that start with the adata_umap_title
-        for key in PROCESSED_ADATA_CACHE[sample_id].keys():
+    requested_sample_id = sample_id
+    cached_keys = list(PROCESSED_ADATA_CACHE.get(requested_sample_id, {}).keys())
+    print(
+        f"Getting trajectory gene expression for sample_id: {requested_sample_id}, adata_umap_title: {adata_umap_title}, gene_names: {gene_names}, trajectory_path: {trajectory_path}",
+        cached_keys,
+    )
+
+    def _find_cache_key(cache_dict):
+        if adata_umap_title in cache_dict:
+            return adata_umap_title
+        for key in cache_dict.keys():
             if key.startswith(f"{adata_umap_title}_cluster_"):
-                adata = PROCESSED_ADATA_CACHE[sample_id][key]
-                cache_key_used = key
-                break
-    
-    if adata is None:
-        raise ValueError(f"No cached trajectory data found for key '{adata_umap_title}' in sample '{sample_id}'. Please run get_direct_slingshot_data first. Available keys: {list(PROCESSED_ADATA_CACHE[sample_id].keys())}")
-    
-    print(f"Using cached data with key: {cache_key_used}")
+                return key
+        return None
+
+    resolved_sample_id = requested_sample_id
+    cache_key_used = None
+    sample_cache = PROCESSED_ADATA_CACHE.get(requested_sample_id)
+
+    if sample_cache:
+        cache_key_used = _find_cache_key(sample_cache)
+
+    if cache_key_used is None:
+        for candidate_sample_id, candidate_cache in PROCESSED_ADATA_CACHE.items():
+            if candidate_sample_id == requested_sample_id:
+                continue
+            if candidate_sample_id in adata_umap_title:
+                cache_key_candidate = _find_cache_key(candidate_cache)
+                if cache_key_candidate:
+                    resolved_sample_id = candidate_sample_id
+                    cache_key_used = cache_key_candidate
+                    print(
+                        f"Resolved adata_umap_title '{adata_umap_title}' to cached sample '{resolved_sample_id}' by matching the embedded sample identifier."
+                    )
+                    break
+
+    if cache_key_used is None:
+        available_by_sample = {
+            sid: [key for key in cache.keys() if key != "trajectory_results"]
+            for sid, cache in PROCESSED_ADATA_CACHE.items()
+        }
+        raise ValueError(
+            f"No cached trajectory data found for key '{adata_umap_title}'. "
+            f"Requested sample '{requested_sample_id}' has keys {cached_keys}. "
+            f"Available keys by sample: {available_by_sample}. Please run get_direct_slingshot_data first."
+        )
+
+    if resolved_sample_id != requested_sample_id:
+        print(
+            f"Using trajectory cache from sample '{resolved_sample_id}' after resolving mismatch with requested sample '{requested_sample_id}'."
+        )
+
+    adata = PROCESSED_ADATA_CACHE[resolved_sample_id][cache_key_used]
+    print(f"Using cached data with key: {cache_key_used} from sample '{resolved_sample_id}'")
+    print(f"Cached adata shape: {adata.shape}, n_vars: {adata.n_vars}")
     
     # Validate gene names
     if isinstance(gene_names, str):
         gene_names = [gene_names]
+    
+    print(f"Input gene_names: {gene_names}")
+    print(f"First 10 genes in adata.var_names: {list(adata.var_names[:10])}")
     
     available_genes = []
     for gene in gene_names:
@@ -1421,8 +1456,10 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             available_genes.append(gene)
         else:
             print(f"Gene '{gene}' not found in dataset")
-    
+    print(f"Available genes for analysis: {available_genes}")
     if not available_genes:
+        print(f"Gene validation failed. Dataset has {adata.n_vars} genes total.")
+        print(f"Sample gene names (first 20): {list(adata.var_names[:20])}")
         raise ValueError("No valid genes found in dataset")
     
     # Get the leiden column name
@@ -1437,8 +1474,11 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     
     # Try to get trajectory results from cache first (preferred method)
     trajectory_results = None
-    if 'trajectory_results' in PROCESSED_ADATA_CACHE[sample_id] and cache_key_used in PROCESSED_ADATA_CACHE[sample_id]['trajectory_results']:
-        trajectory_results = PROCESSED_ADATA_CACHE[sample_id]['trajectory_results'][cache_key_used]
+    if (
+        'trajectory_results' in PROCESSED_ADATA_CACHE.get(resolved_sample_id, {})
+        and cache_key_used in PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results']
+    ):
+        trajectory_results = PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results'][cache_key_used]
         print(f"Using cached trajectory results for pseudotime values with key: {cache_key_used}")
     
     if trajectory_results and isinstance(trajectory_results, list) and len(trajectory_results) > 0:
@@ -2069,17 +2109,18 @@ def get_highly_variable_genes(sample_ids, cell_ids=None, top_n=20):
                     # Use a lower n_top_genes if we have fewer genes than usual
                     n_top_genes = min(2000, adata_roi.n_vars // 2) if adata_roi.n_vars < 4000 else 2000
                     
-                    sc.pp.filter_genes(adata, min_cells=1)
-                    sc.pp.filter_cells(adata, min_genes=50)
+                    # Apply filtering to ROI data (not original adata)
+                    sc.pp.filter_genes(adata_roi, min_cells=1)
+                    sc.pp.filter_cells(adata_roi, min_genes=50)
                     
                     # Calculate highly variable genes for the ROI
                     try:
-                        if 'counts' in adata.layers:
-                            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
+                        if 'counts' in adata_roi.layers:
+                            sc.pp.highly_variable_genes(adata_roi, n_top_genes=n_top_genes, layer='counts', flavor="seurat_v3")
                         else:
-                            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="seurat")
+                            sc.pp.highly_variable_genes(adata_roi, n_top_genes=n_top_genes, flavor="seurat")
                     except Exception:
-                            sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor="cell_ranger")
+                            sc.pp.highly_variable_genes(adata_roi, n_top_genes=n_top_genes, flavor="cell_ranger")
                     
                     # Get highly variable genes
                     if 'highly_variable' in adata_roi.var.columns:
