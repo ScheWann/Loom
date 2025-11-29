@@ -994,7 +994,22 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 cell_ids = [str(cell_id) for cell_id in cell_ids]
             else:
                 cell_ids = [str(cell_ids)]
-            adata = adata[cell_ids].copy()
+            
+            # Filter to only valid cell IDs that exist in the adata
+            # Convert adata.obs_names to strings for consistent comparison
+            valid_obs_names = [str(x) for x in adata.obs_names]
+            valid_cell_ids = [cell_id for cell_id in cell_ids if cell_id in valid_obs_names]
+            
+            if len(valid_cell_ids) == 0:
+                return {
+                    "status": "error",
+                    "message": f"None of the provided cell_ids were found in the dataset",
+                    "data": []
+                }
+            
+            # Create a boolean mask for filtering
+            mask = [str(x) in valid_cell_ids for x in adata.obs_names]
+            adata = adata[mask].copy()
         else:
             return {
                 "status": "error",
@@ -1019,7 +1034,8 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
                 "data": []
             }
 
-        n_top_genes = min(1000, adata.n_vars)
+        # n_top_genes = min(1000, adata.n_vars)
+        n_top_genes = 2000
 
         try:
             try:
@@ -1030,6 +1046,8 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             print("HVG failed, using all genes")
             adata.var['highly_variable'] = True
 
+        # sc.pp.normalize_total(adata)
+        # sc.pp.log1p(adata)
         sc.pp.scale(adata, max_value=10)
 
         try:
@@ -1293,8 +1311,19 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
                 # Handle lists, numpy arrays, pandas series, etc.
                 cell_ids = [str(cell_id) for cell_id in cell_ids]
             else:
-                cell_ids = str(cell_ids)
-            adata = adata[cell_ids].copy()
+                cell_ids = [str(cell_ids)]
+            
+            # Filter to only valid cell IDs that exist in the adata
+            # Convert adata.obs_names to strings for consistent comparison
+            valid_obs_names = [str(x) for x in adata.obs_names]
+            valid_cell_ids = [cell_id for cell_id in cell_ids if cell_id in valid_obs_names]
+            
+            if len(valid_cell_ids) == 0:
+                raise ValueError("None of the provided cell_ids were found in the dataset")
+            
+            # Create a boolean mask for filtering
+            mask = [str(x) in valid_cell_ids for x in adata.obs_names]
+            adata = adata[mask].copy()
         else:
             raise ValueError(f"No gene expression data available for sample {sample_id}")
             

@@ -22,6 +22,7 @@ export const SampleViewer = ({
     umapLoading,
     setUmapLoading,
     hoveredCluster,
+    clusterColorMappings,
     onImagesLoaded,
     kosaraDisplayEnabled = true,
     trajectoryGenes = [],
@@ -2079,7 +2080,76 @@ export const SampleViewer = ({
                     }
                 })];
 
-                // Add a highlight overlay for hovered cells
+                // Create cell-to-cluster mapping from UMAP data
+                const cellToClusterMap = new Map();
+                const clusterColorMap = new Map();
+                
+                // Build mapping from all available UMAPs for this sample
+                if (clusterColorMappings && umapDataSets) {
+                    umapDataSets.forEach(umapDataSet => {
+                        if (umapDataSet.sampleId === sampleId && umapDataSet.data) {
+                            const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
+                            if (mapping && mapping.sample_id === sampleId) {
+                                umapDataSet.data.forEach(cell => {
+                                    const cellId = String(cell.id || cell.cell_id);
+                                    const clusterName = cell.cluster;
+                                    const clusterNumber = clusterName?.toString().replace(/\D/g, '');
+                                    if (clusterNumber && mapping.clusters && mapping.clusters[clusterNumber]) {
+                                        cellToClusterMap.set(cellId, clusterName);
+                                        clusterColorMap.set(cellId, mapping.clusters[clusterNumber]);
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // Create overlay for cells with cluster assignments
+                if (cellToClusterMap.size > 0) {
+                    const clusterData = expressionData.filter(d => cellToClusterMap.has(String(d.id)));
+                    
+                    layers.push(new ScatterplotLayer({
+                        id: `single-gene-clusters-${sampleId}`,
+                        data: clusterData,
+                        getPosition: d => [d.x, d.y],
+                        radiusScale: dynamicRadius,
+                        getRadius: 1.5,
+                        getFillColor: d => {
+                            const cellId = String(d.id);
+                            const hex = clusterColorMap.get(cellId);
+                            if (hex) {
+                                const rgb = hex.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
+                                // Lighten by blending with white (20% lighter)
+                                const lightRgb = rgb.map(c => Math.min(255, Math.floor(c + (255 - c) * 0.2)));
+                                return [...lightRgb, 150];
+                            }
+                            return [100, 100, 100, 150];
+                        },
+                        getLineColor: d => {
+                            const cellId = String(d.id);
+                            const hex = clusterColorMap.get(cellId);
+                            if (hex) {
+                                const rgb = hex.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [80, 80, 80];
+                                return [Math.floor(rgb[0] * 0.9), Math.floor(rgb[1] * 0.9), Math.floor(rgb[2] * 0.9), 200];
+                            }
+                            return [80, 80, 80, 200];
+                        },
+                        getLineWidth: 1,
+                        lineWidthUnits: 'pixels',
+                        radiusUnits: 'pixels',
+                        radiusMinPixels: 1,
+                        pickable: false,
+                        stroked: true,
+                        updateTriggers: {
+                            data: [cellToClusterMap.size, sampleId],
+                            getFillColor: [clusterColorMappings, umapDataSets],
+                            getLineColor: [clusterColorMappings, umapDataSets],
+                        },
+                        parameters: { depthTest: false }
+                    }));
+                }
+
+                // Add a highlight overlay for hovered cells (on top of cluster colors)
                 const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
                 if (hoveredSet) {
                     const highlightData = expressionData.filter(d => hoveredSet.has(String(d.id)));
@@ -2089,8 +2159,8 @@ export const SampleViewer = ({
                         data: highlightData,
                         getPosition: d => [d.x, d.y],
                         radiusScale: dynamicRadius,
-                        getRadius: 1.6,
-                        getFillColor: [255, 215, 0, 220],
+                        getRadius: 1.8,
+                        getFillColor: [255, 215, 0, 240],
                         getLineColor: [255, 140, 0, 255],
                         getLineWidth: 2,
                         lineWidthUnits: 'pixels',
@@ -2138,6 +2208,76 @@ export const SampleViewer = ({
                     }
                 })];
 
+                // Create cell-to-cluster mapping from UMAP data
+                const cellToClusterMap = new Map();
+                const clusterColorMap = new Map();
+                
+                // Build mapping from all available UMAPs for this sample
+                if (clusterColorMappings && umapDataSets) {
+                    umapDataSets.forEach(umapDataSet => {
+                        if (umapDataSet.sampleId === sampleId && umapDataSet.data) {
+                            const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
+                            if (mapping && mapping.sample_id === sampleId) {
+                                umapDataSet.data.forEach(cell => {
+                                    const cellId = String(cell.id || cell.cell_id);
+                                    const clusterName = cell.cluster;
+                                    const clusterNumber = clusterName?.toString().replace(/\D/g, '');
+                                    if (clusterNumber && mapping.clusters && mapping.clusters[clusterNumber]) {
+                                        cellToClusterMap.set(cellId, clusterName);
+                                        clusterColorMap.set(cellId, mapping.clusters[clusterNumber]);
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // Create overlay for cells with cluster assignments
+                if (cellToClusterMap.size > 0) {
+                    const cellData = (filteredCellData[sampleId] || []);
+                    const clusterData = cellData.filter(d => cellToClusterMap.has(String(d.id ?? d.cell_id)));
+                    
+                    layers.push(new ScatterplotLayer({
+                        id: `kosara-clusters-${sampleId}`,
+                        data: clusterData,
+                        getPosition: d => [d.x, d.y],
+                        radiusScale: dynamicRadius,
+                        getRadius: 1.5,
+                        getFillColor: d => {
+                            const cellId = String(d.id ?? d.cell_id);
+                            const hex = clusterColorMap.get(cellId);
+                            if (hex) {
+                                const rgb = hex.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
+                                // Lighten by blending with white (20% lighter)
+                                const lightRgb = rgb.map(c => Math.min(255, Math.floor(c + (255 - c) * 0.2)));
+                                return [...lightRgb, 150];
+                            }
+                            return [100, 100, 100, 150];
+                        },
+                        getLineColor: d => {
+                            const cellId = String(d.id ?? d.cell_id);
+                            const hex = clusterColorMap.get(cellId);
+                            if (hex) {
+                                const rgb = hex.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [80, 80, 80];
+                                return [Math.floor(rgb[0] * 0.9), Math.floor(rgb[1] * 0.9), Math.floor(rgb[2] * 0.9), 200];
+                            }
+                            return [80, 80, 80, 200];
+                        },
+                        getLineWidth: 1,
+                        lineWidthUnits: 'pixels',
+                        radiusUnits: 'pixels',
+                        radiusMinPixels: 1,
+                        pickable: false,
+                        stroked: true,
+                        updateTriggers: {
+                            data: [cellToClusterMap.size, sampleId],
+                            getFillColor: [clusterColorMappings, umapDataSets],
+                            getLineColor: [clusterColorMappings, umapDataSets],
+                        },
+                        parameters: { depthTest: false }
+                    }));
+                }
+
                 // Add a highlight overlay for hovered cells to ensure cross-highlighting works in gene mode
                 const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
                 if (hoveredSet) {
@@ -2148,10 +2288,10 @@ export const SampleViewer = ({
                         data: highlightData,
                         getPosition: d => [d.x, d.y],
                         radiusScale: dynamicRadius,
-                        getRadius: 1.6,
-                        getFillColor: [255, 215, 0, 220],
+                        getRadius: 1.8,
+                        getFillColor: [255, 215, 0, 240],
                         getLineColor: [255, 140, 0, 255],
-                        getLineWidth: 2,
+                        getLineWidth: 3,
                         lineWidthUnits: 'pixels',
                         radiusUnits: 'pixels',
                         radiusMinPixels: 1,
@@ -2176,6 +2316,30 @@ export const SampleViewer = ({
             const isGeneModeWithoutConfirmedData = mode === 'genes' && selectedGenes.length > 0 && !hasConfirmedGeneData;
             const shouldShowCellTypes = mode === 'cellTypes' || isGeneModeWithoutSelection || isGeneModeWithoutConfirmedData;
 
+            // Create cell-to-cluster mapping from UMAP data
+            const cellToClusterMap = new Map();
+            const clusterColorMap = new Map();
+            
+            // Build mapping from all available UMAPs for this sample
+            if (clusterColorMappings && umapDataSets) {
+                umapDataSets.forEach(umapDataSet => {
+                    if (umapDataSet.sampleId === sampleId && umapDataSet.data) {
+                        const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
+                        if (mapping && mapping.sample_id === sampleId) {
+                            umapDataSet.data.forEach(cell => {
+                                const cellId = String(cell.id || cell.cell_id);
+                                const clusterName = cell.cluster;
+                                const clusterNumber = clusterName?.toString().replace(/\D/g, '');
+                                if (clusterNumber && mapping.clusters && mapping.clusters[clusterNumber]) {
+                                    cellToClusterMap.set(cellId, clusterName);
+                                    clusterColorMap.set(cellId, mapping.clusters[clusterNumber]);
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
             return [new ScatterplotLayer({
                 id: `cells-${sampleId}`,
                 data: cellData,
@@ -2185,13 +2349,20 @@ export const SampleViewer = ({
                     const localId = d.id ?? d.cell_id;
                     const isHoveredSample = !!hoveredSet;
                     if (isHoveredSample && hoveredSet.has(String(localId))) {
-                        return 1.5;
+                        return 1.8;
                     }
                     return 1;
                 },
                 getFillColor: d => {
+                    const localId = String(d.id ?? d.cell_id);
                     const cellType = d.cell_type;
 
+                    // Priority 1: Hovered cells (brightest highlight)
+                    if (hoveredSet && hoveredSet.has(localId)) {
+                        return [255, 215, 0, 240];
+                    }
+
+                    // Priority 2: Cell type colors (if in cell type mode)
                     if (shouldShowCellTypes) {
                         const sampleSelectedCellTypes = selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [];
                         if (cellType && sampleSelectedCellTypes.includes(cellType)) {
@@ -2203,29 +2374,50 @@ export const SampleViewer = ({
                         }
                     }
 
-                    const localId = d.id ?? d.cell_id;
-                    if (hoveredSet && hoveredSet.has(String(localId))) {
-                        return [255, 215, 0, 200];
+                    // Priority 3: Cluster colors from UMAP (always show if available)
+                    const clusterHex = clusterColorMap.get(localId);
+                    if (clusterHex) {
+                        const rgb = clusterHex.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [100, 100, 100];
+                        // Lighten by blending with white (20% lighter)
+                        const lightRgb = rgb.map(c => Math.min(255, Math.floor(c + (255 - c) * 0.2)));
+                        return [...lightRgb, 150];
                     }
+
+                    // Priority 4: Dimmed when other cells are hovered
                     if (hoveredSet) {
                         return [150, 150, 150, 50];
                     }
+
                     return [0, 0, 0, 0];
                 },
                 getLineColor: d => {
-                    const localId = d.id ?? d.cell_id;
-                    if (hoveredSet && hoveredSet.has(String(localId))) {
+                    const localId = String(d.id ?? d.cell_id);
+                    
+                    // Hovered cells get bright border
+                    if (hoveredSet && hoveredSet.has(localId)) {
                         return [255, 140, 0, 255];
                     }
+                    
+                    // Cells with cluster assignment get slightly darker cluster color border
+                    const clusterHex = clusterColorMap.get(localId);
+                    if (clusterHex) {
+                        const rgb = clusterHex.match(/\w\w/g)?.map(x => parseInt(x, 16)) || [80, 80, 80];
+                        return [Math.floor(rgb[0] * 0.9), Math.floor(rgb[1] * 0.9), Math.floor(rgb[2] * 0.9), 200];
+                    }
+                    
                     if (hoveredSet) {
                         return [150, 150, 150, 100];
                     }
                     return [0, 0, 0, 0];
                 },
                 getLineWidth: d => {
-                    const localId = d.id ?? d.cell_id;
-                    if (hoveredSet && hoveredSet.has(String(localId))) {
-                        return 2;
+                    const localId = String(d.id ?? d.cell_id);
+                    if (hoveredSet && hoveredSet.has(localId)) {
+                        return 3;
+                    }
+                    // Show border for cells with cluster assignment
+                    if (clusterColorMap.has(localId)) {
+                        return 1;
                     }
                     if (hoveredSet) {
                         return 1;
@@ -2237,12 +2429,12 @@ export const SampleViewer = ({
                 radiusUnits: 'pixels',
                 radiusMinPixels: 1,
                 stroked: true,
-                filled: (!!hoveredSet) || (shouldShowCellTypes && selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
+                filled: (!!hoveredSet) || (cellToClusterMap.size > 0) || (shouldShowCellTypes && selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId, shouldShowCellTypes],
-                    getLineColor: [hoveredCluster, sampleId],
+                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId, shouldShowCellTypes, clusterColorMappings, umapDataSets, cellToClusterMap.size],
+                    getLineColor: [hoveredCluster, sampleId, clusterColorMappings, umapDataSets, cellToClusterMap.size],
                     getRadius: [sampleId, hoveredCluster],
-                    getLineWidth: [hoveredCluster, sampleId],
+                    getLineWidth: [hoveredCluster, sampleId, cellToClusterMap.size],
                 },
                 transitions: {
                     getPosition: 0,
@@ -2250,7 +2442,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState, clusterColorMappings]);
 
     // Generate trajectory guideline layer
     const generateTrajectoryGuidelineLayer = useCallback(() => {

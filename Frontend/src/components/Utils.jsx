@@ -41,7 +41,7 @@ export const COLOR_PALETTE = [
 ];
 
 export const COLOR_BREWER2_PALETTE = [
-    "#a6cee3",
+    // "#a6cee3",
     "#b15928",
     "#33a02c",
     "#fb9a99",

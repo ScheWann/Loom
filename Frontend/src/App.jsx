@@ -455,6 +455,7 @@ function App() {
                       umapLoading={umapLoading}
                       setUmapLoading={setUmapLoading}
                       hoveredCluster={hoveredCluster}
+                      clusterColorMappings={clusterColorMappings}
                       onImagesLoaded={onImagesLoaded}
                       kosaraDisplayEnabled={kosaraDisplayEnabled}
                       trajectoryGenes={trajectoryGenes}
