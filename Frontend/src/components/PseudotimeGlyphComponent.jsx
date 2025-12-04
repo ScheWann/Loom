@@ -430,9 +430,10 @@ export const PseudotimeGlyphComponent = ({
     };
 
     // Helper function to extract display name and sample ID for consistent formatting
-    const getConsistentDisplayTitle = (baseTitle, umapDataSets) => {
+    const getConsistentDisplayTitle = (baseTitle, umapDataSets) => {        
         if (!umapDataSets || !Array.isArray(umapDataSets)) {
-            return baseTitle;
+            // If no UMAP datasets, try to extract area name from baseTitle
+            return extractAreaNameFromTitle(baseTitle);
         }
         
         // Find the matching UMAP dataset
@@ -440,31 +441,59 @@ export const PseudotimeGlyphComponent = ({
             dataset.adata_umap_title === baseTitle || dataset.title === baseTitle
         );
         
-        if (matchingUmapDataset && matchingUmapDataset.title) {
-            // The title should already be in format "${newName} (${dataset.sampleId})"
-            return matchingUmapDataset.title;
-        }
-        
-        // Fallback: try to construct the title from adata_umap_title
-        if (baseTitle && typeof baseTitle === 'string') {
-            // Extract sample ID from the title (look for patterns like skin_TXK6Z4X_A1)
-            const sampleIdMatch = baseTitle.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
-            if (sampleIdMatch) {
-                const sampleId = sampleIdMatch[1];
-                // Extract the name part (everything before the sample ID and parameters)
-                const parts = baseTitle.split('_');
-                // Remove the last 3 parts (parameters) and the sample ID parts
-                const sampleIdParts = sampleId.split('_'); // e.g., ["skin", "TXK6Z4X", "A1"]
-                const namePartsCount = parts.length - 3 - sampleIdParts.length;
-                if (namePartsCount > 0) {
-                    const nameParts = parts.slice(0, namePartsCount);
-                    const displayName = nameParts.join('_').replace(/_/g, ' ');
-                    return `${displayName} (${sampleId})`;
+        if (matchingUmapDataset) {
+            // If we have areaName property, use it directly
+            if (matchingUmapDataset.areaName) {
+                return matchingUmapDataset.areaName;
+            }
+            
+            // Otherwise extract from title format "${areaName} (${sampleId})"
+            if (matchingUmapDataset.title) {
+                const titleMatch = matchingUmapDataset.title.match(/^(.+?)\s*\(/);
+                if (titleMatch) {
+                    return titleMatch[1]; // Return just the area name part
                 }
             }
         }
         
-        return baseTitle; // fallback to original title
+        // Fallback: extract area name from the baseTitle
+        return extractAreaNameFromTitle(baseTitle);
+    };
+
+    // Helper function to extract area name from various title formats
+    const extractAreaNameFromTitle = (title) => {
+        if (!title || typeof title !== 'string') {
+            return title;
+        }
+        
+        // If it's already in the desired format (no underscores, just spaces), return as-is
+        if (!title.includes('_')) {
+            return title;
+        }
+        
+        // Try to extract area name from adata_umap_title format
+        // Pattern: {areaName}_{sampleId}_{param1}_{param2}_{param3}
+        const sampleIdMatch = title.match(/(skin_[A-Z0-9]+_[A-Z0-9]+)/);
+        if (sampleIdMatch) {
+            const sampleId = sampleIdMatch[1];
+            const parts = title.split('_');
+            const sampleIdParts = sampleId.split('_');
+            
+            // Find where the sample ID starts in the parts array
+            const sampleIdStartIndex = parts.findIndex((part, index) => {
+                return parts.slice(index, index + sampleIdParts.length).join('_') === sampleId;
+            });
+            
+            if (sampleIdStartIndex > 0) {
+                // Everything before the sample ID is the area name
+                const nameParts = parts.slice(0, sampleIdStartIndex);
+                return nameParts.join(' ').replace(/_/g, ' ');
+            }
+        }
+        
+        // If pattern doesn't match, try to clean up the title by removing common sample patterns
+        const cleanTitle = title.replace(/(skin_[A-Z0-9]+_[A-Z0-9]+).*$/, '').replace(/_+$/, '');
+        return cleanTitle.replace(/_/g, ' ');
     };
 
     // Convert pseudotimeDataSets object to separate trajectory data for each UMAP
