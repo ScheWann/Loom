@@ -1175,9 +1175,13 @@ export const SampleViewer = ({
 
             // Update corresponding UMAP datasets with new area color and name
             setUmapDataSets(prev => prev.map(dataset => {
-                // Check if this dataset corresponds to the edited area by matching the original area name and sample
-                if (dataset.areaName === selectedAreaForEdit.name &&
-                    dataset.sampleId === selectedAreaForEdit.sampleId) {
+                // Match by areaId first, then fallback to areaName for backward compatibility.
+                const sameSample = dataset.sampleId === selectedAreaForEdit.sampleId;
+                const sameArea = dataset.areaId
+                    ? dataset.areaId === selectedAreaForEdit.id
+                    : dataset.areaName === selectedAreaForEdit.name;
+
+                if (sameSample && sameArea) {
 
                     // If the area name changed, we need to update the adata_umap_title as well
                     let newAdataUmapTitle = dataset.adata_umap_title;
@@ -1205,7 +1209,29 @@ export const SampleViewer = ({
     // Handle area deletion
     const handleAreaDelete = () => {
         if (selectedAreaForEdit) {
-            setCustomAreas(prev => prev.filter(area => area.id !== selectedAreaForEdit.id));
+            const deletingArea = selectedAreaForEdit;
+
+            const relatedUmapCount = (umapDataSets || []).filter(dataset => {
+                const sameSample = dataset.sampleId === deletingArea.sampleId;
+                const sameArea = dataset.areaId
+                    ? dataset.areaId === deletingArea.id
+                    : dataset.areaName === deletingArea.name;
+                return sameSample && sameArea;
+            }).length;
+
+            setCustomAreas(prev => prev.filter(area => area.id !== deletingArea.id));
+
+            // Remove UMAP datasets tied to this area so cards and spot coloring are cleared.
+            setUmapDataSets(prev => prev.filter(dataset => {
+                const sameSample = dataset.sampleId === deletingArea.sampleId;
+                const sameArea = dataset.areaId
+                    ? dataset.areaId === deletingArea.id
+                    : dataset.areaName === deletingArea.name;
+                return !(sameSample && sameArea);
+            }));
+
+            const umapWord = relatedUmapCount === 1 ? 'UMAP plot' : 'UMAP plots';
+            message.success(`Deleted area "${deletingArea.name}" and removed ${relatedUmapCount} related ${umapWord}.`);
         }
         handleAreaEditCancel();
     };
@@ -1877,6 +1903,7 @@ export const SampleViewer = ({
                 data: [],
                 loading: true,
                 sampleId: selectedAreaForEdit.sampleId,
+                areaId: selectedAreaForEdit.id,
                 areaPoints: selectedAreaForEdit.points,
                 areaColor: selectedAreaForEdit.color,
                 areaName: selectedAreaForEdit.name

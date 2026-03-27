@@ -281,6 +281,53 @@ function App() {
     );
   };
 
+  // Remove one UMAP dataset and eagerly clean its color mapping.
+  const handleCloseUmapDataset = (datasetToRemove) => {
+    setUmapDataSets(prev => prev.filter((d) => d.id !== datasetToRemove.id));
+    setClusterColorMappings(prev => {
+      if (!datasetToRemove?.adata_umap_title || !prev[datasetToRemove.adata_umap_title]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[datasetToRemove.adata_umap_title];
+      return next;
+    });
+
+    const umapLabel = datasetToRemove?.title || datasetToRemove?.adata_umap_title || "UMAP plot";
+    message.success(`Deleted UMAP plot "${umapLabel}".`);
+  };
+
+  // Keep color mappings in sync with currently rendered UMAP datasets.
+  useEffect(() => {
+    const activeTitles = new Set(
+      umapDataSets
+        .map(dataset => dataset.adata_umap_title)
+        .filter(Boolean)
+    );
+
+    setClusterColorMappings(prev => {
+      const next = {};
+      Object.keys(prev).forEach((key) => {
+        if (activeTitles.has(key)) {
+          next[key] = prev[key];
+        }
+      });
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [umapDataSets]);
+
+  // Clear hovered cluster if its source UMAP dataset no longer exists.
+  useEffect(() => {
+    if (!hoveredCluster?.umapId) {
+      return;
+    }
+
+    const exists = umapDataSets.some(dataset => dataset.id === hoveredCluster.umapId);
+    if (!exists) {
+      setHoveredCluster(null);
+    }
+  }, [umapDataSets, hoveredCluster]);
+
   // Handler for gene selection from TrajectoryViewer
   const handleTrajectoryGeneSelection = (genes, sampleId) => {
     setTrajectoryGenes(genes);
@@ -551,11 +598,7 @@ function App() {
                                       type="text"
                                       size="small"
                                       icon={<CloseOutlined />}
-                                      onClick={() =>
-                                        setUmapDataSets((prev) =>
-                                          prev.filter((d) => d.id !== dataset.id)
-                                        )
-                                      }
+                                      onClick={() => handleCloseUmapDataset(dataset)}
                                       style={{
                                         position: "absolute",
                                         top: "2px",
