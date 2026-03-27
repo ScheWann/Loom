@@ -2641,16 +2641,16 @@ export const SampleViewer = ({
                         getFillColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [255, 202, 58, 255] : [255, 202, 58, 200];
+                                return shouldSnap ? [247, 37, 133, 255] : [247, 37, 133, 255];
                             }
-                            return [0, 255, 150, 200];
+                            return [247, 37, 133, 240];
                         },
                         getLineColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [255, 165, 0, 255] : [200, 200, 0, 255];
+                                return shouldSnap ? [247, 37, 133, 255] : [247, 37, 133, 255];
                             }
-                            return [0, 255, 150, 255];
+                            return [247, 37, 133, 255];
                         },
                         getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
                         radiusUnits: 'pixels',
@@ -2674,7 +2674,7 @@ export const SampleViewer = ({
                         data: lineSegments,
                         getSourcePosition: d => d.sourcePosition,
                         getTargetPosition: d => d.targetPosition,
-                        getColor: [0, 255, 150, 200],
+                        getColor: [247, 37, 133, 240],
                         getWidth: 2,
                         widthUnits: 'pixels',
                         pickable: false,
@@ -2687,8 +2687,8 @@ export const SampleViewer = ({
                         id: 'drawing-preview',
                         data: [{ polygon: pointsToShow }],
                         getPolygon: d => d.polygon,
-                        getFillColor: [0, 255, 150, 30],
-                        getLineColor: [0, 255, 150, 0],
+                        getFillColor: [247, 37, 133, 80],
+                        getLineColor: [247, 37, 133, 0],
                         getLineWidth: 0,
                         pickable: false,
                     }));
@@ -2705,8 +2705,8 @@ export const SampleViewer = ({
                         data: [{ position: mousePosition }],
                         getPosition: d => d.position,
                         getRadius: shouldSnap ? 8 : 5,
-                        getFillColor: shouldSnap ? [255, 202, 58, 200] : [0, 255, 150, 150],
-                        getLineColor: shouldSnap ? [255, 140, 0, 255] : [0, 255, 150, 200],
+                        getFillColor: shouldSnap ? [247, 37, 133, 235] : [247, 37, 133, 220],
+                        getLineColor: shouldSnap ? [247, 37, 133, 255] : [247, 37, 133, 245],
                         getLineWidth: shouldSnap ? 3 : 1,
                         radiusUnits: 'pixels',
                         lineWidthUnits: 'pixels',
@@ -2726,7 +2726,7 @@ export const SampleViewer = ({
                             }],
                             getSourcePosition: d => d.sourcePosition,
                             getTargetPosition: d => d.targetPosition,
-                            getColor: shouldSnap ? [255, 202, 58, 200] : [0, 255, 150, 150],
+                            getColor: shouldSnap ? [247, 37, 133, 235] : [247, 37, 133, 220],
                             getWidth: shouldSnap ? 4 : 2,
                             widthUnits: 'pixels',
                             pickable: false,
@@ -2741,8 +2741,8 @@ export const SampleViewer = ({
                             data: [{ position: firstPoint }],
                             getPosition: d => d.position,
                             getRadius: 15,
-                            getFillColor: [255, 165, 0, 50],
-                            getLineColor: [255, 165, 0, 150],
+                            getFillColor: [247, 37, 133, 110],
+                            getLineColor: [247, 37, 133, 220],
                             getLineWidth: 2,
                             radiusUnits: 'pixels',
                             lineWidthUnits: 'pixels',

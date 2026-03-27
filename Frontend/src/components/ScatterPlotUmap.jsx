@@ -33,7 +33,7 @@ export const ScatterplotUmap = ({
   onUmapDataUpdate,
   onUmapLoadingStart,
   areaColor,
-  areaName
+  areaName,
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -53,21 +53,25 @@ export const ScatterplotUmap = ({
 
   // UMAP settings popup state
   const [umapSettingsVisible, setUmapSettingsVisible] = useState(false);
-  const [umapSettingsPosition, setUmapSettingsPosition] = useState({ x: 0, y: 0 });
-
-
-
+  const [umapSettingsPosition, setUmapSettingsPosition] = useState({
+    x: 0,
+    y: 0,
+  });
 
   const fetchGOAnalysisData = (sampleId, cluster, adata_umap_title) => {
     setGOAnalysisLoading(true);
     setGOAnalysisVisible(true);
     setGOAnalysisData(null);
 
-    const cluster_id = cluster.split(" ")[1]
+    const cluster_id = cluster.split(" ")[1];
     fetch("/api/get_go_analysis", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sample_id: sampleId, cluster_id: cluster_id, adata_umap_title: adata_umap_title }),
+      body: JSON.stringify({
+        sample_id: sampleId,
+        cluster_id: cluster_id,
+        adata_umap_title: adata_umap_title,
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -82,7 +86,12 @@ export const ScatterplotUmap = ({
   };
 
   // Handler for UMAP settings update
-  const handleUmapSettingsUpdate = (newData, newAdataUmapTitle, newSettings, newName) => {
+  const handleUmapSettingsUpdate = (
+    newData,
+    newAdataUmapTitle,
+    newSettings,
+    newName,
+  ) => {
     // Update the data prop by calling a callback from parent
     if (onUmapDataUpdate) {
       onUmapDataUpdate(newData, newAdataUmapTitle, newSettings, newName);
@@ -98,18 +107,23 @@ export const ScatterplotUmap = ({
     }
 
     // If hovering the same cluster, do nothing
-    if (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) {
+    if (
+      localHoveredCluster?.cluster === cluster &&
+      localHoveredCluster?.umapId === umapId
+    ) {
       return;
     }
 
     // Update local state immediately
-    const newHoverState = cluster ? {
-      cluster: cluster,
-      cellIds: cellIds,
-      points: points,
-      umapId: umapId,
-      sampleId: sampleId,
-    } : null;
+    const newHoverState = cluster
+      ? {
+          cluster: cluster,
+          cellIds: cellIds,
+          points: points,
+          umapId: umapId,
+          sampleId: sampleId,
+        }
+      : null;
 
     setLocalHoveredCluster(newHoverState);
     setHoveredCluster(newHoverState);
@@ -120,7 +134,7 @@ export const ScatterplotUmap = ({
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
-    
+
     hoverTimeoutRef.current = setTimeout(() => {
       setLocalHoveredCluster(null);
       setHoveredCluster(null);
@@ -152,31 +166,36 @@ export const ScatterplotUmap = ({
     if (!data || data.length === 0 || !setClusterColorMappings) return;
 
     // Color by cluster - sort clusters numerically for consistent ordering
-    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort((a, b) => {
-      // Extract numeric part from cluster names (e.g., "Cluster 1" -> 1)
-      const numA = parseInt(a.toString().replace(/\D/g, '')) || 0;
-      const numB = parseInt(b.toString().replace(/\D/g, '')) || 0;
-      return numA - numB;
-    });
+    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort(
+      (a, b) => {
+        // Extract numeric part from cluster names (e.g., "Cluster 1" -> 1)
+        const numA = parseInt(a.toString().replace(/\D/g, "")) || 0;
+        const numB = parseInt(b.toString().replace(/\D/g, "")) || 0;
+        return numA - numB;
+      },
+    );
     const color = d3.scaleOrdinal().domain(clusters).range(COLORS);
 
     // Create cluster color mapping and pass to parent
     const colorMapping = {
       sample_id: sampleId,
       name: adata_umap_title,
-      clusters: {}
+      clusters: {},
     };
 
-    clusters.forEach(cluster => {
+    clusters.forEach((cluster) => {
       // Extract numeric part from cluster name (e.g., "Cluster 4" -> "4")
-      const clusterNumber = cluster.toString().replace(/\D/g, '') || cluster;
+      const clusterNumber = cluster.toString().replace(/\D/g, "") || cluster;
       colorMapping.clusters[clusterNumber] = color(cluster);
     });
 
-    setClusterColorMappings(prevMappings => {
+    setClusterColorMappings((prevMappings) => {
       // Only update if the mapping has changed
-      if (!prevMappings[adata_umap_title] ||
-        JSON.stringify(prevMappings[adata_umap_title].clusters) !== JSON.stringify(colorMapping.clusters)) {
+      if (
+        !prevMappings[adata_umap_title] ||
+        JSON.stringify(prevMappings[adata_umap_title].clusters) !==
+          JSON.stringify(colorMapping.clusters)
+      ) {
         const newMappings = { ...prevMappings };
         newMappings[adata_umap_title] = colorMapping;
         return newMappings;
@@ -184,7 +203,13 @@ export const ScatterplotUmap = ({
 
       return prevMappings;
     });
-  }, [data, clusterAccessor, sampleId, adata_umap_title, setClusterColorMappings]);
+  }, [
+    data,
+    clusterAccessor,
+    sampleId,
+    adata_umap_title,
+    setClusterColorMappings,
+  ]);
 
   useEffect(() => {
     if (!data || data.length === 0) return;
@@ -203,12 +228,14 @@ export const ScatterplotUmap = ({
     const yScale = d3.scaleLinear().domain(yExtent).range([innerHeight, 0]);
 
     // Color by cluster - sort clusters numerically for consistent ordering
-    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort((a, b) => {
-      // Extract numeric part from cluster names (e.g., "Cluster 1" -> 1)
-      const numA = parseInt(a.toString().replace(/\D/g, '')) || 0;
-      const numB = parseInt(b.toString().replace(/\D/g, '')) || 0;
-      return numA - numB;
-    });
+    const clusters = Array.from(new Set(data.map(clusterAccessor))).sort(
+      (a, b) => {
+        // Extract numeric part from cluster names (e.g., "Cluster 1" -> 1)
+        const numA = parseInt(a.toString().replace(/\D/g, "")) || 0;
+        const numB = parseInt(b.toString().replace(/\D/g, "")) || 0;
+        return numA - numB;
+      },
+    );
     const color = d3.scaleOrdinal().domain(clusters).range(COLORS);
 
     // SVG
@@ -228,7 +255,8 @@ export const ScatterplotUmap = ({
     const clusterGroups = d3.group(data, clusterAccessor);
 
     // Check if trajectory is being hovered for this UMAP
-    const isTrajectoryHovered = hoveredTrajectory &&
+    const isTrajectoryHovered =
+      hoveredTrajectory &&
       hoveredTrajectory.adata_umap_title === adata_umap_title &&
       hoveredTrajectory.path &&
       hoveredTrajectory.path.length > 1;
@@ -256,12 +284,27 @@ export const ScatterplotUmap = ({
           .attr("d", line)
           .attr("data-cluster", cluster)
           .attr("fill", color(cluster))
-          .attr("fill-opacity", (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) ? 0.4 : 0.2)
+          .attr(
+            "fill-opacity",
+            localHoveredCluster?.cluster === cluster &&
+              localHoveredCluster?.umapId === umapId
+              ? 0.4
+              : 0.2,
+          )
           .attr("stroke", color(cluster))
-          .attr("stroke-width", (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) ? 3.5 : 2.5)
+          .attr(
+            "stroke-width",
+            localHoveredCluster?.cluster === cluster &&
+              localHoveredCluster?.umapId === umapId
+              ? 3.5
+              : 2.5,
+          )
           .attr(
             "stroke-opacity",
-            (localHoveredCluster?.cluster === cluster && localHoveredCluster?.umapId === umapId) ? 0.8 : 0.3
+            localHoveredCluster?.cluster === cluster &&
+              localHoveredCluster?.umapId === umapId
+              ? 0.8
+              : 0.3,
           )
           .style("cursor", "pointer")
           .style("pointer-events", "visibleFill")
@@ -270,7 +313,7 @@ export const ScatterplotUmap = ({
             const cellIds = points
               .map((d) => d.id || d.cell_id)
               .filter(Boolean);
-            setCurrentCellIds(cellIds); 
+            setCurrentCellIds(cellIds);
 
             fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
           })
@@ -301,32 +344,37 @@ export const ScatterplotUmap = ({
       .attr("r", pointSize)
       .attr("fill", (d) => color(clusterAccessor(d)))
       .attr("opacity", (d) => {
-        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId) return 0.5;
+        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId)
+          return 0.5;
         return localHoveredCluster.cluster === clusterAccessor(d) ? 0.8 : 0.05;
       })
       .attr("stroke", (d) => {
-        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId) return "none";
-        return localHoveredCluster.cluster === clusterAccessor(d) ? "#fff" : "none";
+        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId)
+          return "none";
+        return localHoveredCluster.cluster === clusterAccessor(d)
+          ? "#fff"
+          : "none";
       })
       .attr("stroke-width", (d) => {
-        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId) return 0;
+        if (!localHoveredCluster || localHoveredCluster.umapId !== umapId)
+          return 0;
         return localHoveredCluster.cluster === clusterAccessor(d) ? 1 : 0;
       })
       .style("cursor", "pointer")
       .on("click", function (event, d) {
         event.stopPropagation();
-        
+
         setClickPosition({ x: event.clientX, y: event.clientY });
-        
+
         const cluster = clusterAccessor(d);
         const clusterPoints = data.filter(
-          (point) => clusterAccessor(point) === cluster
+          (point) => clusterAccessor(point) === cluster,
         );
         const cellIds = clusterPoints
           .map((p) => p.id || p.cell_id)
           .filter(Boolean);
-        
-        setCurrentCellIds(cellIds); 
+
+        setCurrentCellIds(cellIds);
 
         fetchGOAnalysisData(sampleId, cluster, adata_umap_title);
       })
@@ -335,7 +383,7 @@ export const ScatterplotUmap = ({
 
         const cluster = clusterAccessor(d);
         const clusterPoints = data.filter(
-          (point) => clusterAccessor(point) === cluster
+          (point) => clusterAccessor(point) === cluster,
         );
         const cellIds = clusterPoints
           .map((p) => p.id || p.cell_id)
@@ -376,7 +424,7 @@ export const ScatterplotUmap = ({
       .append("g")
       .attr(
         "transform",
-        `translate(${width - margin.right - 70}, ${margin.top - 20})`
+        `translate(${width - margin.right - 70}, ${margin.top - 20})`,
       )
       .style("z-index", 10);
 
@@ -386,7 +434,9 @@ export const ScatterplotUmap = ({
         .style("cursor", "pointer")
         .on("mouseenter", (event) => {
           event.stopPropagation();
-          const clusterPoints = data.filter(point => clusterAccessor(point) === cl);
+          const clusterPoints = data.filter(
+            (point) => clusterAccessor(point) === cl,
+          );
           const cellIds = clusterPoints
             .map((p) => p.id || p.cell_id)
             .filter(Boolean);
@@ -406,7 +456,11 @@ export const ScatterplotUmap = ({
         .attr("fill", color(cl))
         .attr(
           "opacity",
-          (!localHoveredCluster || localHoveredCluster.umapId !== umapId) || localHoveredCluster.cluster === cl ? 1 : 0.3
+          !localHoveredCluster ||
+            localHoveredCluster.umapId !== umapId ||
+            localHoveredCluster.cluster === cl
+            ? 1
+            : 0.3,
         );
       legendGroup
         .append("text")
@@ -416,7 +470,11 @@ export const ScatterplotUmap = ({
         .attr("font-size", 9)
         .attr(
           "opacity",
-          (!localHoveredCluster || localHoveredCluster.umapId !== umapId) || localHoveredCluster.cluster === cl ? 1 : 0.3
+          !localHoveredCluster ||
+            localHoveredCluster.umapId !== umapId ||
+            localHoveredCluster.cluster === cl
+            ? 1
+            : 0.3,
         );
     });
   }, [
@@ -453,7 +511,7 @@ export const ScatterplotUmap = ({
             height: "4px",
             backgroundColor: areaColor,
             zIndex: 10,
-            boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
           }}
           title={areaName ? `Region: ${areaName}` : "Selected Region"}
         />
@@ -483,7 +541,7 @@ export const ScatterplotUmap = ({
         onUpdateSettings={handleUmapSettingsUpdate}
         onLoadingStart={onUmapLoadingStart}
         sampleId={sampleId}
-        cellIds={data.map(d => d.id || d.cell_id).filter(Boolean)}
+        cellIds={data.map((d) => d.id || d.cell_id).filter(Boolean)}
         adata_umap_title={adata_umap_title}
         currentTitle={title}
         data={data}
