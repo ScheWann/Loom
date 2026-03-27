@@ -334,11 +334,11 @@ function App() {
               maxTagCount="responsive"
               loading={sampleDataLoading}
             />
-            <Button
+            {/* <Button
               size="small"
               onClick={() => setUploadFormVisible(true)}
               icon={<PlusOutlined />}
-            />
+            /> */}
             <Button size="small" onClick={confirmSamples}>
               Confirm
             </Button>
