@@ -878,7 +878,8 @@ export const PseudotimeGlyphComponent = ({
                 padding: '5px'
             }}>
                 <Select
-                    placeholder="Select genes"
+                    className="pseudotime-gene-select"
+                    placeholder="Select Genes"
                     value={selectedGenes}
                     onChange={setSelectedGenes}
                     style={{ width: '220px' }}

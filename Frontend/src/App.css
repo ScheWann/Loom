@@ -54,6 +54,61 @@ body {
   /* margin: 0 auto 24px; */
 }
 
+/* Keep small multi-select controls aligned with small buttons (scoped only to this class). */
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selector {
+  min-height: 24px !important;
+  height: 24px;
+  padding-block: 0 !important;
+  display: flex;
+  align-items: center;
+}
+
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-overflow {
+  align-items: center;
+}
+
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-placeholder {
+  top: 50%;
+  transform: translateY(calc(-50% + 1px));
+  line-height: 20px;
+}
+
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-item {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  line-height: 18px;
+  margin-block: 0;
+  transform: translateY(0.6px);
+}
+
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-item-content {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  line-height: 18px;
+}
+
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-item-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  line-height: 18px;
+  margin-inline-start: 4px;
+}
+
+.sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-item-remove .anticon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+/* Pseudotime gene selector only: move dropdown arrow 1px down for visual centering. */
+.pseudotime-gene-select.ant-select-multiple.ant-select-sm .ant-select-arrow {
+  margin-top: -5px;
+}
+
 .ant-spin-nested-loading {
   height: 100%;
 }

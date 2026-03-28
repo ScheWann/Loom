@@ -594,6 +594,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
                     {/* Gene Selector (Multiple) */}
                     <Select
+                        className="sample-multi-select"
                         size="small"
                         mode="multiple"
                         placeholder="Select Genes"
