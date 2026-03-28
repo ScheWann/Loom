@@ -1722,6 +1722,11 @@ export const SampleViewer = ({
             return;
         }
 
+        // Convert world coordinates back to sample-local coordinates before sending to backend.
+        // In multi-sample view, world coordinates include sampleOffsets and will otherwise break barcode lookup.
+        const [offsetX, offsetY] = sampleOffsets[selectedAreaForEdit.sampleId] || [0, 0];
+        const toSampleLocal = (point) => [point[0] - offsetX, point[1] - offsetY];
+
         // Set loading state
         setIsTrajectoryAnalyzing(true);
 
@@ -1737,10 +1742,10 @@ export const SampleViewer = ({
 
         const trajectoryData = {
             sampleId: selectedAreaForEdit.sampleId,
-            startCoordinates: trajectoryStart,
-            endCoordinates: trajectoryEnd,
+            startCoordinates: toSampleLocal(trajectoryStart),
+            endCoordinates: toSampleLocal(trajectoryEnd),
             arrowWidthPixels: arrowWidth,
-            drawingPoints: selectedAreaForEdit.points,
+            drawingPoints: (selectedAreaForEdit.points || []).map(toSampleLocal),
             areaName: selectedAreaForEdit.name,
             trajectoryName: trajectoryName.trim()
         };
@@ -1834,7 +1839,7 @@ export const SampleViewer = ({
                         t.end === trajectoryEnd)
                 ));
             });
-    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, onTrajectoryAnalysisComplete]);
+    }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, onTrajectoryAnalysisComplete, sampleOffsets]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops
     const getSampleAtCoordinate = useCallback((x, y) => {

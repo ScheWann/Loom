@@ -2006,6 +2006,16 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         
         # Select barcodes within the ROI polygon
         bc16 = select_barcodes_in_polygon(tgt_16um_parquet, roi_fullres)
+
+        if len(bc16) == 0:
+            return {
+                "status": "error",
+                "message": (
+                    "No valid 16um barcodes were found inside the selected ROI. "
+                    "Please redraw the ROI in the correct sample area and try again."
+                ),
+                "sample_id": sample_id
+            }
         
         # Run SPATA2 analysis
         spata2_results = run_spata2_analysis(
@@ -2016,6 +2026,16 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
             arrow_width_16um_pixels,
             trajectory_name
         )
+
+        if not spata2_results:
+            return {
+                "status": "error",
+                "message": (
+                    "SPATA2 analysis failed. This is usually caused by barcode mismatch "
+                    "or invalid trajectory coordinates for the selected sample."
+                ),
+                "sample_id": sample_id
+            }
         
         result = {
             "status": "success",
@@ -2025,11 +2045,7 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
             #     "end_16um_lowres": end_16um_lowres,
             #     "arrow_width_16um_pixels": arrow_width_16um_pixels,
             # },
-            "spata2_analysis": spata2_results if spata2_results else {
-                "trajectory_data": [],
-                "significant_genes": [],
-                "trajectory_id": None
-            }
+            "spata2_analysis": spata2_results
         }
         
         # Store the result in the cache for later retrieval by the cascade selectors
@@ -2038,8 +2054,6 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
             # Use the provided area_name as the region, or create a default if not provided
             region_name = area_name if area_name else f"Region_{trajectory_name}" if trajectory_name else "Default_Region"
             store_trajectory_analysis(sample_id, region_name, trajectory_name, result)
-        else:
-            print(f"No SPATA2 results to store for trajectory {trajectory_name}")
         
         return result
         
