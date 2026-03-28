@@ -4355,8 +4355,8 @@ export const SampleViewer = ({
                 </div>
 
                 {/* Global Drawing Control */}
-                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, pointerEvents: 'none' }}>
                         {/* Reset View Button */}
                         <Button
                             size="big"
@@ -4365,7 +4365,8 @@ export const SampleViewer = ({
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'center',
+                                pointerEvents: 'auto'
                             }}
                             icon={<RedoOutlined style={{ fontSize: '18px' }} />}
                             title="Reset view to initial position and zoom"
@@ -4380,7 +4381,8 @@ export const SampleViewer = ({
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'center',
+                                pointerEvents: 'auto'
                             }}
                             icon={<BorderOutlined style={{ fontSize: '18px' }} />}
                             title={minimapVisible ? 'Hide minimap' : 'Show minimap'}
@@ -4395,7 +4397,8 @@ export const SampleViewer = ({
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'center',
+                                pointerEvents: 'auto'
                             }}
                             icon={<EditOutlined style={{ fontSize: '18px' }} />}
                             title={isDrawing ? 'Click to finish/cancel drawing' : 'Click to start drawing areas'}
@@ -4416,7 +4419,8 @@ export const SampleViewer = ({
                         lineHeight: '1.4',
                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
                         minWidth: '200px',
-                        textAlign: 'left'
+                        textAlign: 'left',
+                        pointerEvents: isDrawing ? 'auto' : 'none'
                     }}>
                         <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Drawing Shortcuts:</div>
                         <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
