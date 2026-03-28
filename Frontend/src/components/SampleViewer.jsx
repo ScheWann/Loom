@@ -2101,6 +2101,10 @@ export const SampleViewer = ({
     }, [selectedSamples, umapDataSets, clusterColorMappings]);
 
     const generateCellLayers = useCallback(() => {
+        // While drawing/trajectory/editing, disable picking on dense cell/gene layers.
+        // This prevents clicks on spots from interfering with drawing.
+        const pickingEnabled = !isDrawing && !isTrajectoryMode && !isAreaTooltipVisible && !isAreaEditPopupVisible;
+
         return selectedSamples.flatMap(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
@@ -2153,7 +2157,7 @@ export const SampleViewer = ({
                         const opacity = d.expression === 0 ? 0 : 255;
                         return [...color, opacity];
                     },
-                    pickable: true,
+                    pickable: pickingEnabled,
                     stroked: false,
                     radiusUnits: 'meters',
                     radiusMinPixels: 1,
@@ -2267,7 +2271,7 @@ export const SampleViewer = ({
                         const rgbColor = convertHEXToRGB(d.color || '#333333');
                         return [...rgbColor, 255];
                     },
-                    pickable: true,
+                    pickable: pickingEnabled,
                     stroked: false,
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: { data: [kosaraPolygonsBySample[sampleId], sampleId], getFillColor: [geneColorMap, selectedGenes] },
@@ -2448,7 +2452,7 @@ export const SampleViewer = ({
                     return 0;
                 },
                 lineWidthUnits: 'pixels',
-                pickable: true,
+                pickable: pickingEnabled,
                 radiusUnits: 'meters',
                 radiusMinPixels: 1,
                 radiusMaxPixels,
@@ -2466,7 +2470,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, clusterMapsBySample, geneColorMap, selectedGenes, kosaraDataBySample]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, clusterMapsBySample, geneColorMap, selectedGenes, kosaraDataBySample, isDrawing, isTrajectoryMode, isAreaTooltipVisible, isAreaEditPopupVisible]);
 
     // Generate trajectory guideline layer
     const generateTrajectoryGuidelineLayer = useCallback(() => {
