@@ -634,24 +634,43 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
             <div
                 ref={chartContainerRef}
                 style={{
-                    flex: 1,
+                    flex: "1 1 0",
+                    minHeight: 0,
                     overflowY: "hidden",
                     overflowX: "hidden",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minHeight: "200px",
+                    position: "relative",
                 }}
             >
                 {loading && (
-                    <Spin size="large" />
+                    <div
+                        style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Spin size="large" />
+                    </div>
                 )}
 
                 {!loading && trajectoryDataSets.length === 0 && (
-                    <Empty
-                        description="Select sample, region, trajectory, and genes, then click Add to view trajectory analysis"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    />
+                    <div
+                        style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Empty
+                            description="Select sample, region, trajectory, and genes, then click Add to view trajectory analysis"
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        />
+                    </div>
                 )}
 
                 {!loading && trajectoryDataSets.length > 0 && (

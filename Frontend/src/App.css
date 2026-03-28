@@ -136,6 +136,12 @@ body {
   margin-top: 10%;
 }
 
+/* Keep trajectory empty/loading states geometrically centered in panel body. */
+.trajectory-viewer .ant-empty-image,
+.trajectory-viewer .ant-spin-dot-holder {
+  margin-top: 0;
+}
+
 .ant-splitter-panel {
   height: 100%;
 }
