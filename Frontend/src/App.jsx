@@ -427,7 +427,7 @@ function App() {
           {/* select samples */}
           <div className="selectSamples">
             <Select
-              className="sample-multi-select"
+              className="sample-multi-select app-sample-select"
               size="small"
               mode="multiple"
               placeholder="Select samples"

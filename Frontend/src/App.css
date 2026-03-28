@@ -104,6 +104,17 @@ body {
   vertical-align: middle;
 }
 
+/* App top sample selector only: selected tag color */
+.app-sample-select.ant-select-multiple.ant-select-sm .ant-select-selection-item {
+  background-color: #caf0f8;
+  color: #0077b6;
+}
+
+.app-sample-select.ant-select-multiple.ant-select-sm .ant-select-selection-item-remove,
+.app-sample-select.ant-select-multiple.ant-select-sm .ant-select-selection-item-remove .anticon {
+  color: #0077b6;
+}
+
 /* Pseudotime gene selector only: move dropdown arrow 1px down for visual centering. */
 .pseudotime-gene-select.ant-select-multiple.ant-select-sm .ant-select-arrow {
   margin-top: -5px;
