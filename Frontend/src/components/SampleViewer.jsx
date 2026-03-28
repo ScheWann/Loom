@@ -45,6 +45,12 @@ export const SampleViewer = ({
     const hoverRafRef = useRef(null);
     const lastHoverKeyRef = useRef(null);
 
+    // Keep latest values for native pointer handlers (fast clicks) without stale closures
+    const mainViewStateRef = useRef(null);
+    const drawingPointsRef = useRef([]);
+    const currentDrawingSampleRef = useRef(null);
+    const finishDrawingRef = useRef(null);
+
     const [mainViewState, setMainViewState] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({});
@@ -91,6 +97,18 @@ export const SampleViewer = ({
     const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
     const [mousePosition, setMousePosition] = useState(null);
     const [hoveredCell, setHoveredCell] = useState(null);
+
+    useEffect(() => {
+        mainViewStateRef.current = mainViewState;
+    }, [mainViewState]);
+
+    useEffect(() => {
+        drawingPointsRef.current = drawingPoints;
+    }, [drawingPoints]);
+
+    useEffect(() => {
+        currentDrawingSampleRef.current = currentDrawingSample;
+    }, [currentDrawingSample]);
 
     // Area customization tooltip state
     const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
@@ -917,27 +935,33 @@ export const SampleViewer = ({
             setIsDrawing(true);
             setCurrentDrawingSample(null);
             setDrawingPoints([]);
+
+            currentDrawingSampleRef.current = null;
+            drawingPointsRef.current = [];
         }
     };
 
     const finishDrawing = () => {
-        if (drawingPoints.length >= 3 && currentDrawingSample) {
+        const points = (drawingPointsRef.current && Array.isArray(drawingPointsRef.current)) ? drawingPointsRef.current : drawingPoints;
+        const sampleId = currentDrawingSampleRef.current ?? currentDrawingSample;
+
+        if (points.length >= 3 && sampleId) {
             // Create ROI name for unique ID
             const roiName = `Custom Area ${customAreas.length + 1}`;
 
             // Create pending area and show tooltip for customization
             const newPendingArea = {
-                id: `${roiName.replace(/\s+/g, '_')}_${currentDrawingSample}`,
-                sampleId: currentDrawingSample,
-                points: [...drawingPoints],
+                id: `${roiName.replace(/\s+/g, '_')}_${sampleId}`,
+                sampleId,
+                points: [...points],
                 name: roiName,
                 color: '#f72585'
             };
 
             // Find the rightmost point of the drawn area for tooltip positioning
-            const rightmostPoint = findRightmostPoint(drawingPoints);
+            const rightmostPoint = findRightmostPoint(points);
             // Find the vertical center of the drawn area
-            const verticalCenter = findVerticalCenter(drawingPoints);
+            const verticalCenter = findVerticalCenter(points);
 
             setPendingArea(newPendingArea);
             setAreaName(newPendingArea.name);
@@ -950,13 +974,23 @@ export const SampleViewer = ({
             setIsDrawing(false);
             setDrawingPoints([]);
             setCurrentDrawingSample(null);
+
+            drawingPointsRef.current = [];
+            currentDrawingSampleRef.current = null;
         }
     };
+
+    useEffect(() => {
+        finishDrawingRef.current = finishDrawing;
+    }, [finishDrawing]);
 
     const cancelDrawing = () => {
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
+
+        drawingPointsRef.current = [];
+        currentDrawingSampleRef.current = null;
     };
 
     // Handle area tooltip actions
@@ -1669,7 +1703,10 @@ export const SampleViewer = ({
             return;
         }
 
-        if (!isDrawing || !info.coordinate) return;
+        // Drawing uses native pointerdown handler for better fast-click reliability.
+        if (isDrawing) return;
+
+        if (!info.coordinate) return;
 
         const [x, y] = info.coordinate;
         const currentPoint = [x, y];
@@ -1689,6 +1726,88 @@ export const SampleViewer = ({
 
         setDrawingPoints(prev => [...prev, currentPoint]);
     }, [isDrawing, isAreaTooltipVisible, shouldSnapToFirst, currentDrawingSample, drawingPoints.length, getSampleAtCoordinate, handleAreaClick, isTrajectoryMode, handleTrajectoryClick]);
+
+    // Reliable ROI point placement on fast clicks: use native pointerdown to avoid DeckGL click suppression.
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        if (!isDrawing || isAreaTooltipVisible || isTrajectoryMode) return;
+
+        const handlePointerDown = (event) => {
+            // Only primary button / touch
+            if (event.button != null && event.button !== 0) return;
+
+            const viewState = mainViewStateRef.current;
+            if (!viewState) return;
+
+            const rect = container.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+
+            let worldCoords;
+            try {
+                const viewport = new OrthographicView({ id: 'main' }).makeViewport({
+                    width: rect.width,
+                    height: rect.height,
+                    viewState
+                });
+                worldCoords = viewport.unproject([x, y]);
+            } catch {
+                return;
+            }
+
+            if (!worldCoords || worldCoords.length < 2) return;
+
+            const worldX = worldCoords[0];
+            const worldY = worldCoords[1];
+            const currentPoint = [worldX, worldY];
+
+            // Determine sample on first point
+            const points = drawingPointsRef.current || [];
+            const activeSample = currentDrawingSampleRef.current;
+            if (!activeSample && points.length === 0) {
+                const sampleId = getSampleAtCoordinate(worldX, worldY);
+                if (!sampleId) return;
+                currentDrawingSampleRef.current = sampleId;
+                setCurrentDrawingSample(sampleId);
+            }
+
+            // Snap-to-first (auto-close)
+            if (points.length >= 3) {
+                const firstPoint = points[0];
+                const dx = currentPoint[0] - firstPoint[0];
+                const dy = currentPoint[1] - firstPoint[1];
+                const worldDistance = Math.sqrt(dx * dx + dy * dy);
+                const baseSnapDistance = 50;
+                const zoomFactor = Math.pow(2, -viewState.zoom);
+                const dynamicSnapDistance = baseSnapDistance * zoomFactor;
+
+                if (worldDistance < dynamicSnapDistance) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    finishDrawingRef.current?.();
+                    return;
+                }
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            setDrawingPoints(prev => {
+                const next = [...prev, currentPoint];
+                drawingPointsRef.current = next;
+                return next;
+            });
+        };
+
+        container.addEventListener('pointerdown', handlePointerDown, { capture: true });
+        return () => {
+            container.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+        };
+    }, [isDrawing, isAreaTooltipVisible, isTrajectoryMode, getSampleAtCoordinate]);
 
     // Track mouse movement for preview
     const handleMouseMove = useCallback((info) => {
