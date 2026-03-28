@@ -1132,68 +1132,80 @@ export const SampleViewer = ({
     const handleAreaClick = useCallback((info) => {
         if (isDrawing || isAreaTooltipVisible || isTrajectoryMode) return;
 
-        // Find which area was clicked
-        const clickedObject = info.object;
-        if (clickedObject) {
-            // Extract area ID from layer ID
-            const layerId = info.layer?.id;
-            if (layerId && layerId.startsWith('custom-area-')) {
-                const areaId = layerId.replace('custom-area-', '');
-                const area = customAreas.find(a => a.id === areaId);
+        // Find which area was clicked.
+        // If the click hits a spot/cell point layer inside an ROI polygon, still open the ROI popup.
+        const layerId = info.layer?.id;
+        let targetArea = null;
 
-                if (area) {
-                    setSelectedAreaForEdit(area);
-                    setEditAreaName(area.name);
-                    setEditAreaColor(area.color);
-                    setEditNeighbors(area.neighbors || 10);
-                    setEditNPcas(area.n_pcas || 30);
-                    setEditResolutions(area.resolutions || 1);
+        // Case 1: Direct hit on ROI polygon layer
+        if (layerId && layerId.startsWith('custom-area-')) {
+            const areaId = layerId.replace('custom-area-', '');
+            targetArea = customAreas.find(a => a.id === areaId) || null;
+        }
 
-                    // Find the rightmost point and vertical center of the area
-                    const rightmostPoint = findRightmostPoint(area.points);
-                    const verticalCenter = findVerticalCenter(area.points);
-                    const areaPosition = { x: rightmostPoint.x, y: verticalCenter.y };
-
-                    const screenPos = worldToScreen(areaPosition.x, areaPosition.y);
-                    const container = containerRef.current;
-                    const rect = container.getBoundingClientRect();
-
-                    // Popup dimensions
-                    const popupWidth = 280;
-                    const popupHeight = 300;
-
-                    let left = rect.left + screenPos.x + 20;
-                    let top = rect.top + screenPos.y - popupHeight / 2;
-
-                    // Check if popup would go off the right edge of the screen
-                    if (left + popupWidth > window.innerWidth - 10) {
-                        left = rect.left + screenPos.x - popupWidth - 20;
-                    }
-
-                    // Ensure popup doesn't go off the left edge of the screen
-                    if (left < 10) {
-                        left = 10;
-                    }
-
-                    // Constrain the top position to stay within the viewport bounds
-                    if (top < 10) {
-                        top = 10;
-                    }
-
-                    if (top + popupHeight > window.innerHeight - 10) {
-                        // Force to bottom edge of viewport
-                        top = window.innerHeight - popupHeight - 10;
-                    }
-
-                    setEditPopupPosition({
-                        x: left,
-                        y: top
-                    });
-
-                    setIsAreaEditPopupVisible(true);
+        // Case 2: Clicked something else (e.g., a cell point) — fall back to point-in-polygon
+        if (!targetArea && info?.coordinate && Array.isArray(info.coordinate)) {
+            const [x, y] = info.coordinate;
+            for (let i = customAreas.length - 1; i >= 0; i--) {
+                const area = customAreas[i];
+                if (area?.points?.length >= 3 && isPointInAreaPolygon([x, y], area.points)) {
+                    targetArea = area;
+                    break;
                 }
             }
         }
+
+        if (!targetArea) return;
+
+        setSelectedAreaForEdit(targetArea);
+        setEditAreaName(targetArea.name);
+        setEditAreaColor(targetArea.color);
+        setEditNeighbors(targetArea.neighbors || 10);
+        setEditNPcas(targetArea.n_pcas || 30);
+        setEditResolutions(targetArea.resolutions || 1);
+
+        // Find the rightmost point and vertical center of the area
+        const rightmostPoint = findRightmostPoint(targetArea.points);
+        const verticalCenter = findVerticalCenter(targetArea.points);
+        const areaPosition = { x: rightmostPoint.x, y: verticalCenter.y };
+
+        const screenPos = worldToScreen(areaPosition.x, areaPosition.y);
+        const container = containerRef.current;
+        const rect = container.getBoundingClientRect();
+
+        // Popup dimensions
+        const popupWidth = 280;
+        const popupHeight = 300;
+
+        let left = rect.left + screenPos.x + 20;
+        let top = rect.top + screenPos.y - popupHeight / 2;
+
+        // Check if popup would go off the right edge of the screen
+        if (left + popupWidth > window.innerWidth - 10) {
+            left = rect.left + screenPos.x - popupWidth - 20;
+        }
+
+        // Ensure popup doesn't go off the left edge of the screen
+        if (left < 10) {
+            left = 10;
+        }
+
+        // Constrain the top position to stay within the viewport bounds
+        if (top < 10) {
+            top = 10;
+        }
+
+        if (top + popupHeight > window.innerHeight - 10) {
+            // Force to bottom edge of viewport
+            top = window.innerHeight - popupHeight - 10;
+        }
+
+        setEditPopupPosition({
+            x: left,
+            y: top
+        });
+
+        setIsAreaEditPopupVisible(true);
     }, [isDrawing, isAreaTooltipVisible, isTrajectoryMode, customAreas, worldToScreen]);
 
     // Handle area edit save
@@ -1316,7 +1328,7 @@ export const SampleViewer = ({
     };
 
     // Check if a point is inside a polygon using ray casting algorithm
-    const isPointInAreaPolygon = (point, polygon) => {
+    function isPointInAreaPolygon(point, polygon) {
         const [x, y] = point;
         let inside = false;
         for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -1327,7 +1339,7 @@ export const SampleViewer = ({
             }
         }
         return inside;
-    };
+    }
 
     // Helper function to check if a rectangle of given width can fit entirely within the area
     const canRectangleFitInArea = useCallback((start, end, width, areaPolygon, px, py) => {
