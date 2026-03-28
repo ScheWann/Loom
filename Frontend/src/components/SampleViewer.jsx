@@ -203,6 +203,7 @@ export const SampleViewer = ({
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+    const [decodedHiresImages, setDecodedHiresImages] = useState({}); // { sampleId: true/false }
     const preloadedImageRefs = useRef({}); // Cache actual Image objects for instant display
     const [minimapThumbnails, setMinimapThumbnails] = useState({}); // { sampleId: dataUrl }
     const minimapThumbnailJobsRef = useRef(new Set());
@@ -2249,7 +2250,8 @@ export const SampleViewer = ({
         const layers = selectedSamples.map(sample => {
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
-            const hasImage = !!hiresImages[sample.id];
+            const resolvedImage = preloadedImageRefs.current[sample.id] || hiresImages[sample.id];
+            const hasImage = !!resolvedImage;
 
             if (!imageSize) return null;
 
@@ -2259,7 +2261,7 @@ export const SampleViewer = ({
 
             const layer = new BitmapLayer({
                 id: `tissue-image-${sample.id}`,
-                image: hiresImages[sample.id],
+                image: resolvedImage,
                 bounds: [
                     offset[0],
                     offset[1] + imageSize[1],
@@ -2275,7 +2277,7 @@ export const SampleViewer = ({
         }).filter(Boolean);
 
         return layers;
-    }, [selectedSamples, imageSizes, sampleOffsets, hiresImages]);
+    }, [selectedSamples, imageSizes, sampleOffsets, hiresImages, decodedHiresImages]);
 
     // Generate cell scatter layers and kosara polygons (gene mode)
     const kosaraPolygonsBySample = useMemo(() => {
@@ -3485,6 +3487,23 @@ export const SampleViewer = ({
             return filteredImages;
         });
 
+        setDecodedHiresImages(prev => {
+            const currentSampleIds = new Set(selectedSamples.map(s => s.id));
+            const next = {};
+            Object.keys(prev).forEach(sampleId => {
+                if (currentSampleIds.has(sampleId)) {
+                    next[sampleId] = prev[sampleId];
+                }
+            });
+            return next;
+        });
+
+        Object.keys(preloadedImageRefs.current).forEach(sampleId => {
+            if (!selectedSamples.some(sample => sample.id === sampleId)) {
+                delete preloadedImageRefs.current[sampleId];
+            }
+        });
+
         selectedSamples.forEach(sample => {
             // Check if image is already loaded or currently being fetched
             setHiresImages(prev => {
@@ -3514,34 +3533,35 @@ export const SampleViewer = ({
                         if (blob && isMounted) {
                             const imageUrl = URL.createObjectURL(blob);
 
+                            // Make the image URL available to DeckGL immediately.
+                            // This removes the extra wait where UI was blocked by a separate preload onload.
+                            setHiresImages(currentState => {
+                                if (currentState[sample.id]) {
+                                    try { URL.revokeObjectURL(imageUrl); } catch (e) { }
+                                    return currentState;
+                                }
+                                return {
+                                    ...currentState,
+                                    [sample.id]: imageUrl
+                                };
+                            });
+
                             // Preload the image into memory for instant display
                             const img = new Image();
                             img.onload = () => {
                                 if (isMounted) {
                                     // Store both URL and preloaded image reference
                                     preloadedImageRefs.current[sample.id] = img;
-                                    setHiresImages(currentState => {
-                                        const newState = {
-                                            ...currentState,
-                                            [sample.id]: imageUrl
-                                        };
-                                        return newState;
-                                    });
+                                    setDecodedHiresImages(prev => ({ ...prev, [sample.id]: true }));
                                 }
                             };
                             img.onerror = () => {
                                 console.error(`Failed to preload image for ${sample.id}`);
-                                // Still set the URL even if preload fails
                                 if (isMounted) {
-                                    setHiresImages(currentState => {
-                                        const newState = {
-                                            ...currentState,
-                                            [sample.id]: imageUrl
-                                        };
-                                        return newState;
-                                    });
+                                    setDecodedHiresImages(prev => ({ ...prev, [sample.id]: false }));
                                 }
                             };
+                            img.decoding = 'async';
                             img.src = imageUrl;
                         }
                     })
@@ -3625,7 +3645,7 @@ export const SampleViewer = ({
 
         selectedSamples.forEach(sample => {
             const sampleId = sample.id;
-            if (!hiresImages[sampleId] || minimapThumbnails[sampleId] || minimapThumbnailJobsRef.current.has(sampleId)) {
+            if (!decodedHiresImages[sampleId] || minimapThumbnails[sampleId] || minimapThumbnailJobsRef.current.has(sampleId)) {
                 return;
             }
 
@@ -3636,41 +3656,52 @@ export const SampleViewer = ({
             };
 
             const cachedImage = preloadedImageRefs.current[sampleId];
-            if (cachedImage && cachedImage.complete) {
-                schedule(() => {
-                    createThumbnail(sampleId, cachedImage);
-                    finishJob();
-                });
+            if (!cachedImage || !cachedImage.complete) {
+                finishJob();
                 return;
             }
 
-            const img = new Image();
-            img.onload = () => {
-                schedule(() => {
-                    createThumbnail(sampleId, img);
-                    finishJob();
-                });
-            };
-            img.onerror = finishJob;
-            img.src = hiresImages[sampleId];
+            schedule(() => {
+                createThumbnail(sampleId, cachedImage);
+                finishJob();
+            });
         });
-    }, [selectedSamples, hiresImages, minimapThumbnails]);
+    }, [selectedSamples, decodedHiresImages, minimapThumbnails]);
 
     // Check if all images are loaded and call callback
     useEffect(() => {
         if (!onImagesLoaded || imagesLoadedCallbackCalled.current) return;
+        if (selectedSamples.length === 0) return;
 
-        const timeoutId = setTimeout(() => {
-            const allImagesLoaded = selectedSamples.length > 0 && selectedSamples.every(sample => hiresImages[sample.id]);
+        const allImageLayersReady = selectedSamples.every((sample) => {
+            const sampleId = sample.id;
+            const size = imageSizes[sampleId];
+            return Boolean(hiresImages[sampleId]) && Boolean(decodedHiresImages[sampleId]) && Array.isArray(size) && size[0] > 0 && size[1] > 0;
+        });
 
-            if (allImagesLoaded) {
+        const isViewReady =
+            Boolean(mainViewState) &&
+            containerSize.width > 0 &&
+            containerSize.height > 0;
+
+        if (!allImageLayersReady || !isViewReady) return;
+
+        let raf1 = null;
+        let raf2 = null;
+
+        raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                if (imagesLoadedCallbackCalled.current) return;
                 imagesLoadedCallbackCalled.current = true;
                 onImagesLoaded();
-            }
-        }, 2000);
+            });
+        });
 
-        return () => clearTimeout(timeoutId);
-    }, [hiresImages, selectedSamples, onImagesLoaded]);
+        return () => {
+            if (raf1) cancelAnimationFrame(raf1);
+            if (raf2) cancelAnimationFrame(raf2);
+        };
+    }, [onImagesLoaded, selectedSamples, hiresImages, decodedHiresImages, imageSizes, mainViewState, containerSize.width, containerSize.height]);
 
     // Set container size
     useEffect(() => {
