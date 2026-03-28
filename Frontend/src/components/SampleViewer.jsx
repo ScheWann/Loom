@@ -116,14 +116,14 @@ export const SampleViewer = ({
     const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
     const [pendingArea, setPendingArea] = useState(null);
     const [areaName, setAreaName] = useState('');
-    const [areaColor, setAreaColor] = useState('#f72585');
+    const [areaColor, setAreaColor] = useState('#0084F9');
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
     // Area edit/delete popup state
     const [isAreaEditPopupVisible, setIsAreaEditPopupVisible] = useState(false);
     const [selectedAreaForEdit, setSelectedAreaForEdit] = useState(null);
     const [editAreaName, setEditAreaName] = useState('');
-    const [editAreaColor, setEditAreaColor] = useState('#f72585');
+    const [editAreaColor, setEditAreaColor] = useState('#0084F9');
     const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
     const [editNeighbors, setEditNeighbors] = useState(10);
     const [editNPcas, setEditNPcas] = useState(30);
@@ -1095,7 +1095,7 @@ export const SampleViewer = ({
                 sampleId,
                 points: [...points],
                 name: roiName,
-                color: '#f72585'
+                color: '#0084F9'
             };
 
             // Find the rightmost point of the drawn area for tooltip positioning
@@ -1175,7 +1175,7 @@ export const SampleViewer = ({
         setIsAreaTooltipVisible(false);
         setPendingArea(null);
         setAreaName('');
-        setAreaColor('#f72585');
+        setAreaColor('#0084F9');
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
@@ -1187,7 +1187,7 @@ export const SampleViewer = ({
         setIsAreaTooltipVisible(false);
         setPendingArea(null);
         setAreaName('');
-        setAreaColor('#f72585');
+        setAreaColor('#0084F9');
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
@@ -1443,7 +1443,7 @@ export const SampleViewer = ({
         setIsAreaEditPopupVisible(false);
         setSelectedAreaForEdit(null);
         setEditAreaName('');
-        setEditAreaColor('#f72585');
+        setEditAreaColor('#0084F9');
         setEditNeighbors(10);
         setEditNPcas(30);
         setEditResolutions(1);
@@ -2936,16 +2936,16 @@ export const SampleViewer = ({
                         getFillColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [247, 37, 133, 255] : [247, 37, 133, 255];
+                                return shouldSnap ? [0, 132, 249, 255] : [0, 132, 249, 255];
                             }
-                            return [247, 37, 133, 240];
+                            return [0, 132, 249, 240];
                         },
                         getLineColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [247, 37, 133, 255] : [247, 37, 133, 255];
+                                return shouldSnap ? [0, 132, 249, 255] : [0, 132, 249, 255];
                             }
-                            return [247, 37, 133, 255];
+                            return [0, 132, 249, 255];
                         },
                         getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
                         radiusUnits: 'pixels',
@@ -2969,7 +2969,7 @@ export const SampleViewer = ({
                         data: lineSegments,
                         getSourcePosition: d => d.sourcePosition,
                         getTargetPosition: d => d.targetPosition,
-                        getColor: [247, 37, 133, 240],
+                        getColor: [0, 132, 249, 240],
                         getWidth: 2,
                         widthUnits: 'pixels',
                         pickable: false,
@@ -2982,8 +2982,8 @@ export const SampleViewer = ({
                         id: 'drawing-preview',
                         data: [{ polygon: pointsToShow }],
                         getPolygon: d => d.polygon,
-                        getFillColor: [247, 37, 133, 80],
-                        getLineColor: [247, 37, 133, 0],
+                        getFillColor: [0, 132, 249, 80],
+                        getLineColor: [0, 132, 249, 0],
                         getLineWidth: 0,
                         pickable: false,
                     }));
@@ -3000,8 +3000,8 @@ export const SampleViewer = ({
                         data: [{ position: mousePosition }],
                         getPosition: d => d.position,
                         getRadius: shouldSnap ? 8 : 5,
-                        getFillColor: shouldSnap ? [247, 37, 133, 235] : [247, 37, 133, 220],
-                        getLineColor: shouldSnap ? [247, 37, 133, 255] : [247, 37, 133, 245],
+                        getFillColor: shouldSnap ? [0, 132, 249, 235] : [0, 132, 249, 220],
+                        getLineColor: shouldSnap ? [0, 132, 249, 255] : [0, 132, 249, 245],
                         getLineWidth: shouldSnap ? 3 : 1,
                         radiusUnits: 'pixels',
                         lineWidthUnits: 'pixels',
@@ -3021,7 +3021,7 @@ export const SampleViewer = ({
                             }],
                             getSourcePosition: d => d.sourcePosition,
                             getTargetPosition: d => d.targetPosition,
-                            getColor: shouldSnap ? [247, 37, 133, 235] : [247, 37, 133, 220],
+                            getColor: shouldSnap ? [0, 132, 249, 235] : [0, 132, 249, 220],
                             getWidth: shouldSnap ? 4 : 2,
                             widthUnits: 'pixels',
                             pickable: false,
@@ -3036,8 +3036,8 @@ export const SampleViewer = ({
                             data: [{ position: firstPoint }],
                             getPosition: d => d.position,
                             getRadius: 15,
-                            getFillColor: [247, 37, 133, 110],
-                            getLineColor: [247, 37, 133, 220],
+                            getFillColor: [0, 132, 249, 110],
+                            getLineColor: [0, 132, 249, 220],
                             getLineWidth: 2,
                             radiusUnits: 'pixels',
                             lineWidthUnits: 'pixels',
@@ -4563,7 +4563,7 @@ export const SampleViewer = ({
                             <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end' }}>
                                 <Button
                                     size="small"
-                                    color="pink"
+                                    color="#0084F9"
                                     variant="solid"
                                     onClick={handleAreaTooltipSave}
                                 >

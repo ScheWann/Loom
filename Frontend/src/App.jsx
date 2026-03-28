@@ -80,7 +80,7 @@ function App() {
         console.error("Error clearing caches on page load:", error);
       }
     };
-    
+
     clearAllCachesOnMount();
     fetchSamplesOption();
   }, []);
@@ -443,7 +443,7 @@ function App() {
               onClick={() => setUploadFormVisible(true)}
               icon={<PlusOutlined />}
             /> */}
-            <Button size="small" onClick={confirmSamples}>
+            <Button size="small" color="blue" variant="outlined" onClick={confirmSamples}>
               Confirm
             </Button>
           </div>
@@ -580,7 +580,7 @@ function App() {
                       >
                         <div style={{ height: "100%", overflow: "auto" }}>
                           {selectedSamples.length > 0 || sampleDataLoading ? (
-                            <TrajectoryViewer 
+                            <TrajectoryViewer
                               ref={trajectoryViewerRef}
                               sampleId={selectedSamples.length > 0 ? selectedSamples[0].id : null}
                               samples={selectedSamples}

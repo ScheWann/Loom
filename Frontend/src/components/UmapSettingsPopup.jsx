@@ -492,7 +492,7 @@ export const UmapSettingsPopup = ({
         <Button
           size="small"
           style={{ marginBottom: 5, width: '100%' }}
-          color="pink"
+          color="#0084F9"
           variant="outlined"
           onClick={handleUpdateUMAP}
           loading={loading}
