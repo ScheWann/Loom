@@ -23,6 +23,14 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     const chartContainerRef = useRef();
     const [chartContainerHeight, setChartContainerHeight] = useState(300);
 
+    // Track latest cascade selections to prevent stale async responses from polluting options.
+    const selectedSampleRef = useRef(null);
+    const selectedRegionRef = useRef(null);
+    const selectedTrajectoryRef = useRef(null);
+    const regionsRequestIdRef = useRef(0);
+    const trajectoriesRequestIdRef = useRef(0);
+    const genesRequestIdRef = useRef(0);
+
     // Throttle mouse move events to prevent excessive updates
     const lastMouseMoveRef = useRef({ time: 0, position: null, xValue: null });
 
@@ -107,12 +115,27 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         }
     }, [sampleId, samples]);
 
+    useEffect(() => {
+        selectedSampleRef.current = selectedSample;
+    }, [selectedSample]);
+
+    useEffect(() => {
+        selectedRegionRef.current = selectedRegion;
+    }, [selectedRegion]);
+
+    useEffect(() => {
+        selectedTrajectoryRef.current = selectedTrajectory;
+    }, [selectedTrajectory]);
+
     // Fetch regions when sample changes
     useEffect(() => {
         if (selectedSample) {
             // Clear downstream selections
+            setAvailableRegions([]);
             setSelectedRegion(null);
+            setAvailableTrajectories([]);
             setSelectedTrajectory(null);
+            setAvailableGenes([]);
             setSelectedGenes([]);
             setTrajectoryDataSets([]);
             fetchRegions(selectedSample);
@@ -129,7 +152,9 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     useEffect(() => {
         if (selectedSample && selectedRegion) {
             // Clear downstream selections
+            setAvailableTrajectories([]);
             setSelectedTrajectory(null);
+            setAvailableGenes([]);
             setSelectedGenes([]);
             // Don't clear trajectoryDataSets here - keep existing charts
             fetchTrajectories(selectedSample, selectedRegion);
@@ -145,6 +170,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     useEffect(() => {
         if (selectedSample && selectedRegion && selectedTrajectory) {
             // Clear downstream selections
+            setAvailableGenes([]);
             setSelectedGenes([]);
             // Don't clear trajectoryDataSets here - keep existing charts
             fetchGenes(selectedSample, selectedRegion, selectedTrajectory);
@@ -156,6 +182,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     }, [selectedSample, selectedRegion, selectedTrajectory]);
 
     const fetchRegions = async (sample_id) => {
+        const requestId = ++regionsRequestIdRef.current;
         setRegionsLoading(true);
         try {
             const response = await fetch("/api/get_sample_regions", {
@@ -166,16 +193,28 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 body: JSON.stringify({ sample_id }),
             });
             const data = await response.json();
-            setAvailableRegions(data);
+
+            // Ignore stale responses from previous sample selections.
+            if (requestId !== regionsRequestIdRef.current || selectedSampleRef.current !== sample_id) {
+                return;
+            }
+
+            setAvailableRegions(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Error fetching regions:", error);
-            setAvailableRegions([]);
+
+            if (requestId === regionsRequestIdRef.current && selectedSampleRef.current === sample_id) {
+                setAvailableRegions([]);
+            }
         } finally {
-            setRegionsLoading(false);
+            if (requestId === regionsRequestIdRef.current && selectedSampleRef.current === sample_id) {
+                setRegionsLoading(false);
+            }
         }
     };
 
     const fetchTrajectories = async (sample_id, region_id) => {
+        const requestId = ++trajectoriesRequestIdRef.current;
         setTrajectoriesLoading(true);
         try {
             const response = await fetch("/api/get_region_trajectories", {
@@ -186,16 +225,40 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 body: JSON.stringify({ sample_id, region_id }),
             });
             const data = await response.json();
-            setAvailableTrajectories(data);
+
+            // Ignore stale responses if sample/region changed while request was in flight.
+            if (
+                requestId !== trajectoriesRequestIdRef.current ||
+                selectedSampleRef.current !== sample_id ||
+                selectedRegionRef.current !== region_id
+            ) {
+                return;
+            }
+
+            setAvailableTrajectories(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Error fetching trajectories:", error);
-            setAvailableTrajectories([]);
+
+            if (
+                requestId === trajectoriesRequestIdRef.current &&
+                selectedSampleRef.current === sample_id &&
+                selectedRegionRef.current === region_id
+            ) {
+                setAvailableTrajectories([]);
+            }
         } finally {
-            setTrajectoriesLoading(false);
+            if (
+                requestId === trajectoriesRequestIdRef.current &&
+                selectedSampleRef.current === sample_id &&
+                selectedRegionRef.current === region_id
+            ) {
+                setTrajectoriesLoading(false);
+            }
         }
     };
 
     const fetchGenes = async (sample_id, region_id, trajectory_id) => {
+        const requestId = ++genesRequestIdRef.current;
         setGenesLoading(true);
         try {
             const response = await fetch("/api/get_trajectory_genes", {
@@ -206,12 +269,38 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 body: JSON.stringify({ sample_id, region_id, trajectory_id }),
             });
             const data = await response.json();
-            setAvailableGenes(data);
+
+            // Ignore stale responses if any parent selection changed.
+            if (
+                requestId !== genesRequestIdRef.current ||
+                selectedSampleRef.current !== sample_id ||
+                selectedRegionRef.current !== region_id ||
+                selectedTrajectoryRef.current !== trajectory_id
+            ) {
+                return;
+            }
+
+            setAvailableGenes(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Error fetching genes:", error);
-            setAvailableGenes([]);
+
+            if (
+                requestId === genesRequestIdRef.current &&
+                selectedSampleRef.current === sample_id &&
+                selectedRegionRef.current === region_id &&
+                selectedTrajectoryRef.current === trajectory_id
+            ) {
+                setAvailableGenes([]);
+            }
         } finally {
-            setGenesLoading(false);
+            if (
+                requestId === genesRequestIdRef.current &&
+                selectedSampleRef.current === sample_id &&
+                selectedRegionRef.current === region_id &&
+                selectedTrajectoryRef.current === trajectory_id
+            ) {
+                setGenesLoading(false);
+            }
         }
     };
 

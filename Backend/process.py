@@ -169,17 +169,17 @@ def get_stored_trajectory_analyses(sample_id):
     Get all stored trajectory analyses for a given sample.
     Returns a dictionary with region and trajectory information.
     """
-    base_sample_id = normalize_sample_id(sample_id)
-    
-    print(f"Looking for analyses for base_sample_id={base_sample_id} (from sample_id={sample_id})")
+    cache_sample_id = sample_id
+
+    print(f"Looking for analyses for cache_sample_id={cache_sample_id}")
     print(f"Available samples in cache: {list(TRAJECTORY_ANALYSIS_CACHE.keys())}")
-    
-    if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
-        print(f"No analyses found for {base_sample_id}")
+
+    if cache_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
+        print(f"No analyses found for {cache_sample_id}")
         return {}
-    
-    analyses = TRAJECTORY_ANALYSIS_CACHE[base_sample_id]
-    print(f"Found analyses for {base_sample_id}: {list(analyses.keys())}")
+
+    analyses = TRAJECTORY_ANALYSIS_CACHE[cache_sample_id]
+    print(f"Found analyses for {cache_sample_id}: {list(analyses.keys())}")
     return analyses
 
 
@@ -188,37 +188,37 @@ def store_region(sample_id, region_name):
     Store a region for a given sample without any trajectory analysis.
     This allows regions to be available in the selector before trajectories are analyzed.
     """
-    base_sample_id = normalize_sample_id(sample_id)
+    cache_sample_id = sample_id
 
-    if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
-        TRAJECTORY_ANALYSIS_CACHE[base_sample_id] = {}
+    if cache_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
+        TRAJECTORY_ANALYSIS_CACHE[cache_sample_id] = {}
     
-    if region_name not in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
-        TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name] = {}
+    if region_name not in TRAJECTORY_ANALYSIS_CACHE[cache_sample_id]:
+        TRAJECTORY_ANALYSIS_CACHE[cache_sample_id][region_name] = {}
 
 
 def store_trajectory_analysis(sample_id, region_name, trajectory_name, analysis_result):
     """
     Store trajectory analysis results for later retrieval.
     """
-    base_sample_id = normalize_sample_id(sample_id)
-    
-    print(f"Storing analysis for base_sample_id={base_sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
-    
-    if base_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
-        TRAJECTORY_ANALYSIS_CACHE[base_sample_id] = {}
-        print(f"Created new cache entry for sample {base_sample_id}")
-    
-    if region_name not in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
-        TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name] = {}
-        print(f"Created new region {region_name} for sample {base_sample_id}")
-    
-    TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name][trajectory_name] = analysis_result
+    cache_sample_id = sample_id
+
+    print(f"Storing analysis for cache_sample_id={cache_sample_id}, region_name={region_name}, trajectory_name={trajectory_name}")
+
+    if cache_sample_id not in TRAJECTORY_ANALYSIS_CACHE:
+        TRAJECTORY_ANALYSIS_CACHE[cache_sample_id] = {}
+        print(f"Created new cache entry for sample {cache_sample_id}")
+
+    if region_name not in TRAJECTORY_ANALYSIS_CACHE[cache_sample_id]:
+        TRAJECTORY_ANALYSIS_CACHE[cache_sample_id][region_name] = {}
+        print(f"Created new region {region_name} for sample {cache_sample_id}")
+
+    TRAJECTORY_ANALYSIS_CACHE[cache_sample_id][region_name][trajectory_name] = analysis_result
     print(f"Stored trajectory {trajectory_name} in region {region_name}")
 
-    print(f"Current cache structure for {base_sample_id}: {list(TRAJECTORY_ANALYSIS_CACHE[base_sample_id].keys())}")
-    if region_name in TRAJECTORY_ANALYSIS_CACHE[base_sample_id]:
-        print(f"Trajectories in {region_name}: {list(TRAJECTORY_ANALYSIS_CACHE[base_sample_id][region_name].keys())}")
+    print(f"Current cache structure for {cache_sample_id}: {list(TRAJECTORY_ANALYSIS_CACHE[cache_sample_id].keys())}")
+    if region_name in TRAJECTORY_ANALYSIS_CACHE[cache_sample_id]:
+        print(f"Trajectories in {region_name}: {list(TRAJECTORY_ANALYSIS_CACHE[cache_sample_id][region_name].keys())}")
 
 
 def get_sample_regions(sample_id):
