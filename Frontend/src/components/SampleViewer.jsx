@@ -40,6 +40,11 @@ export const SampleViewer = ({
     const fetchingImages = useRef(new Set()); // Track which images are currently being fetched
     const imagesLoadedCallbackCalled = useRef(false); // Track if callback has been called for current samples
 
+    // Throttle hover-derived state updates (tooltips / hovered trajectory) to avoid re-render storms
+    const hoverPendingRef = useRef(null);
+    const hoverRafRef = useRef(null);
+    const lastHoverKeyRef = useRef(null);
+
     const [mainViewState, setMainViewState] = useState(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [imageSizes, setImageSizes] = useState({});
@@ -1692,24 +1697,21 @@ export const SampleViewer = ({
                 setMousePosition(info.coordinate);
             }
         } else {
-            // Always track mouse position for magnifier, but only set drawing mousePosition when drawing
-            if (info.coordinate) {
+            // Only track mouse position for magnifier when magnifier is actually visible.
+            // Otherwise, mousemove would trigger a React re-render on every frame and cause UI jank.
+            if (magnifierVisible && info.coordinate) {
+                const [worldX, worldY] = info.coordinate;
+
                 // Update mouse position for magnifier tracking
                 setMagnifierMousePos(prev => {
-                    const [worldX, worldY] = info.coordinate;
                     if (prev && prev.x === worldX && prev.y === worldY) return prev;
                     return { x: worldX, y: worldY };
                 });
 
-                // Handle magnifier when key is pressed
-                if (magnifierVisible && !isAreaTooltipVisible && !isAreaEditPopupVisible) {
-                    const [worldX, worldY] = info.coordinate;
-
+                if (!isAreaTooltipVisible && !isAreaEditPopupVisible) {
                     // Determine which sample the mouse is over
                     const hoveredSample = getSampleAtCoordinate(worldX, worldY);
-
                     if (hoveredSample) {
-                        // Update magnifier viewport and mouse position
                         updateMagnifierViewport(worldX, worldY, hoveredSample);
                     }
                 }
@@ -1768,19 +1770,23 @@ export const SampleViewer = ({
 
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
         if (viewId !== 'main') return;
-        // Throttle setState to animation frames to avoid flicker during zoom
-        const nextState = (prev => ({
+
+        // Throttle setState to animation frames to avoid excessive React renders during pan/zoom.
+        // Keep max/min zoom stable so DeckGL doesn't change controller bounds per interaction.
+        const pendingState = {
             ...viewState,
-            maxZoom: prev?.maxZoom ?? 2.5,
-            minZoom: prev?.minZoom ?? -5
-        }))(mainViewState);
-        viewStatePendingRef.current = nextState;
+            maxZoom: 2.5,
+            minZoom: -5
+        };
+
+        viewStatePendingRef.current = pendingState;
         if (viewStateRafRef.current == null) {
             viewStateRafRef.current = requestAnimationFrame(() => {
                 viewStateRafRef.current = null;
                 const pending = viewStatePendingRef.current;
                 viewStatePendingRef.current = null;
                 if (!pending) return;
+
                 setMainViewState(prev => {
                     if (
                         prev &&
@@ -1798,7 +1804,7 @@ export const SampleViewer = ({
                 });
             });
         }
-    }, [mainViewState]);
+    }, []);
 
     // Helper function to check if two areas are the same
     const arePointsSimilar = (points1, points2, tolerance = 1) => {
@@ -2045,18 +2051,75 @@ export const SampleViewer = ({
         return { [hoveredCluster.sampleId]: new Set(hoveredCluster.cellIds.map(String)) };
     }, [hoveredCluster]);
 
+    // Precompute cluster color mappings per sample so pan/zoom does not rebuild maps.
+    // Building these maps can be O(#cells) and must not happen on every viewState update.
+    const clusterMapsBySample = useMemo(() => {
+        const result = {};
+        if (!selectedSamples || selectedSamples.length === 0) return result;
+
+        const selectedIds = new Set(selectedSamples.map(s => s.id));
+        selectedSamples.forEach(s => {
+            result[s.id] = {
+                cellToClusterMap: new Map(),
+                clusterColorMap: new Map()
+            };
+        });
+
+        if (!clusterColorMappings || !umapDataSets || umapDataSets.length === 0) return result;
+
+        for (const umapDataSet of umapDataSets) {
+            const sampleId = umapDataSet.sampleId;
+            if (!selectedIds.has(sampleId)) continue;
+
+            const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
+            if (!mapping || mapping.sample_id !== sampleId || !mapping.clusters) continue;
+
+            const entry = result[sampleId];
+            if (!entry) continue;
+
+            const cellToClusterMap = entry.cellToClusterMap;
+            const clusterColorMap = entry.clusterColorMap;
+
+            const rows = Array.isArray(umapDataSet.data) ? umapDataSet.data : [];
+            for (const cell of rows) {
+                const cellId = String(cell?.id ?? cell?.cell_id);
+                if (!cellId) continue;
+
+                const clusterName = cell?.cluster;
+                const clusterNumber = clusterName?.toString().replace(/\D/g, '');
+                if (!clusterNumber) continue;
+
+                const clusterHex = mapping.clusters[clusterNumber];
+                if (!clusterHex) continue;
+
+                cellToClusterMap.set(cellId, clusterName);
+                clusterColorMap.set(cellId, clusterHex);
+            }
+        }
+
+        return result;
+    }, [selectedSamples, umapDataSets, clusterColorMappings]);
+
     const generateCellLayers = useCallback(() => {
         return selectedSamples.flatMap(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
+            const clusterMaps = clusterMapsBySample[sampleId];
+            const cellToClusterMap = clusterMaps?.cellToClusterMap;
+            const clusterColorMap = clusterMaps?.clusterColorMap;
+            const clusterCount = cellToClusterMap?.size || 0;
+
             // Check if sample is 16um to adjust base radius
             const is16um = sample.name && sample.name.includes('16um');
             const baseRadius = is16um ? 10 : 5;
 
-            // Make radius responsive to zoom: smaller when zoomed out, larger when zoomed in
-            const zoomFactor = mainViewState ? Math.pow(2, mainViewState.zoom * 0.8) : 1;
-            const dynamicRadius = baseRadius * zoomFactor;
+            // Cap the on-screen radius to prevent GPU overdraw at extreme zoom
+            const radiusMaxPixels = is16um ? 80 : 60;
+
+            // Keep point size stable across zoom to avoid massive overdraw at high zoom
+            // and to keep layers stable (no recreation) while panning/zooming.
+            const dynamicRadius = baseRadius;
 
             // If in gene mode and single gene data available, draw single gene expression visualization
             if (mode === 'genes' && singleGeneDataBySample[sampleId]?.cells?.length > 0) {
@@ -2092,8 +2155,9 @@ export const SampleViewer = ({
                     },
                     pickable: true,
                     stroked: false,
-                    radiusUnits: 'pixels',
+                    radiusUnits: 'meters',
                     radiusMinPixels: 1,
+                    radiusMaxPixels,
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: {
                         data: [singleGeneData, sampleId],
@@ -2107,32 +2171,8 @@ export const SampleViewer = ({
                     }
                 })];
 
-                // Create cell-to-cluster mapping from UMAP data
-                const cellToClusterMap = new Map();
-                const clusterColorMap = new Map();
-                
-                // Build mapping from all available UMAPs for this sample
-                if (clusterColorMappings && umapDataSets) {
-                    umapDataSets.forEach(umapDataSet => {
-                        if (umapDataSet.sampleId === sampleId && umapDataSet.data) {
-                            const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
-                            if (mapping && mapping.sample_id === sampleId) {
-                                umapDataSet.data.forEach(cell => {
-                                    const cellId = String(cell.id || cell.cell_id);
-                                    const clusterName = cell.cluster;
-                                    const clusterNumber = clusterName?.toString().replace(/\D/g, '');
-                                    if (clusterNumber && mapping.clusters && mapping.clusters[clusterNumber]) {
-                                        cellToClusterMap.set(cellId, clusterName);
-                                        clusterColorMap.set(cellId, mapping.clusters[clusterNumber]);
-                                    }
-                                });
-                            }
-                        }
-                    });
-                }
-
                 // Create overlay for cells with cluster assignments
-                if (cellToClusterMap.size > 0) {
+                if (clusterCount > 0 && cellToClusterMap) {
                     const clusterData = expressionData.filter(d => cellToClusterMap.has(String(d.id)));
                     
                     layers.push(new ScatterplotLayer({
@@ -2163,14 +2203,15 @@ export const SampleViewer = ({
                         },
                         getLineWidth: 1,
                         lineWidthUnits: 'pixels',
-                        radiusUnits: 'pixels',
+                        radiusUnits: 'meters',
                         radiusMinPixels: 1,
+                        radiusMaxPixels,
                         pickable: false,
                         stroked: true,
                         updateTriggers: {
-                            data: [cellToClusterMap.size, sampleId],
-                            getFillColor: [clusterColorMappings, umapDataSets],
-                            getLineColor: [clusterColorMappings, umapDataSets],
+                            data: [clusterCount, sampleId],
+                            getFillColor: [clusterColorMap],
+                            getLineColor: [clusterColorMap],
                         },
                         parameters: { depthTest: false }
                     }));
@@ -2191,8 +2232,9 @@ export const SampleViewer = ({
                         getLineColor: [255, 140, 0, 255],
                         getLineWidth: 2,
                         lineWidthUnits: 'pixels',
-                        radiusUnits: 'pixels',
+                        radiusUnits: 'meters',
                         radiusMinPixels: 1,
+                        radiusMaxPixels,
                         pickable: false,
                         stroked: true,
                         updateTriggers: {
@@ -2235,32 +2277,8 @@ export const SampleViewer = ({
                     }
                 })];
 
-                // Create cell-to-cluster mapping from UMAP data
-                const cellToClusterMap = new Map();
-                const clusterColorMap = new Map();
-                
-                // Build mapping from all available UMAPs for this sample
-                if (clusterColorMappings && umapDataSets) {
-                    umapDataSets.forEach(umapDataSet => {
-                        if (umapDataSet.sampleId === sampleId && umapDataSet.data) {
-                            const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
-                            if (mapping && mapping.sample_id === sampleId) {
-                                umapDataSet.data.forEach(cell => {
-                                    const cellId = String(cell.id || cell.cell_id);
-                                    const clusterName = cell.cluster;
-                                    const clusterNumber = clusterName?.toString().replace(/\D/g, '');
-                                    if (clusterNumber && mapping.clusters && mapping.clusters[clusterNumber]) {
-                                        cellToClusterMap.set(cellId, clusterName);
-                                        clusterColorMap.set(cellId, mapping.clusters[clusterNumber]);
-                                    }
-                                });
-                            }
-                        }
-                    });
-                }
-
                 // Create overlay for cells with cluster assignments
-                if (cellToClusterMap.size > 0) {
+                if (clusterCount > 0 && cellToClusterMap) {
                     const cellData = (filteredCellData[sampleId] || []);
                     const clusterData = cellData.filter(d => cellToClusterMap.has(String(d.id ?? d.cell_id)));
                     
@@ -2292,14 +2310,15 @@ export const SampleViewer = ({
                         },
                         getLineWidth: 1,
                         lineWidthUnits: 'pixels',
-                        radiusUnits: 'pixels',
+                        radiusUnits: 'meters',
                         radiusMinPixels: 1,
+                        radiusMaxPixels,
                         pickable: false,
                         stroked: true,
                         updateTriggers: {
-                            data: [cellToClusterMap.size, sampleId],
-                            getFillColor: [clusterColorMappings, umapDataSets],
-                            getLineColor: [clusterColorMappings, umapDataSets],
+                            data: [clusterCount, sampleId],
+                            getFillColor: [clusterColorMap],
+                            getLineColor: [clusterColorMap],
                         },
                         parameters: { depthTest: false }
                     }));
@@ -2320,8 +2339,9 @@ export const SampleViewer = ({
                         getLineColor: [255, 140, 0, 255],
                         getLineWidth: 3,
                         lineWidthUnits: 'pixels',
-                        radiusUnits: 'pixels',
+                        radiusUnits: 'meters',
                         radiusMinPixels: 1,
+                        radiusMaxPixels,
                         pickable: false,
                         stroked: true,
                         updateTriggers: {
@@ -2342,30 +2362,6 @@ export const SampleViewer = ({
             const isGeneModeWithoutSelection = mode === 'genes' && (!selectedGenes || selectedGenes.length === 0);
             const isGeneModeWithoutConfirmedData = mode === 'genes' && selectedGenes.length > 0 && !hasConfirmedGeneData;
             const shouldShowCellTypes = mode === 'cellTypes' || isGeneModeWithoutSelection || isGeneModeWithoutConfirmedData;
-
-            // Create cell-to-cluster mapping from UMAP data
-            const cellToClusterMap = new Map();
-            const clusterColorMap = new Map();
-            
-            // Build mapping from all available UMAPs for this sample
-            if (clusterColorMappings && umapDataSets) {
-                umapDataSets.forEach(umapDataSet => {
-                    if (umapDataSet.sampleId === sampleId && umapDataSet.data) {
-                        const mapping = clusterColorMappings[umapDataSet.adata_umap_title];
-                        if (mapping && mapping.sample_id === sampleId) {
-                            umapDataSet.data.forEach(cell => {
-                                const cellId = String(cell.id || cell.cell_id);
-                                const clusterName = cell.cluster;
-                                const clusterNumber = clusterName?.toString().replace(/\D/g, '');
-                                if (clusterNumber && mapping.clusters && mapping.clusters[clusterNumber]) {
-                                    cellToClusterMap.set(cellId, clusterName);
-                                    clusterColorMap.set(cellId, mapping.clusters[clusterNumber]);
-                                }
-                            });
-                        }
-                    }
-                });
-            }
 
             return [new ScatterplotLayer({
                 id: `cells-${sampleId}`,
@@ -2443,7 +2439,7 @@ export const SampleViewer = ({
                         return 3;
                     }
                     // Show border for cells with cluster assignment
-                    if (clusterColorMap.has(localId)) {
+                    if (clusterColorMap && clusterColorMap.has(localId)) {
                         return 1;
                     }
                     if (hoveredSet) {
@@ -2453,15 +2449,16 @@ export const SampleViewer = ({
                 },
                 lineWidthUnits: 'pixels',
                 pickable: true,
-                radiusUnits: 'pixels',
+                radiusUnits: 'meters',
                 radiusMinPixels: 1,
+                radiusMaxPixels,
                 stroked: true,
-                filled: (!!hoveredSet) || (cellToClusterMap.size > 0) || (shouldShowCellTypes && selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
+                filled: (!!hoveredSet) || (clusterCount > 0) || (shouldShowCellTypes && selectedCellTypes && selectedCellTypes[sampleId] && selectedCellTypes[sampleId].length > 0),
                 updateTriggers: {
-                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId, shouldShowCellTypes, clusterColorMappings, umapDataSets, cellToClusterMap.size],
-                    getLineColor: [hoveredCluster, sampleId, clusterColorMappings, umapDataSets, cellToClusterMap.size],
+                    getFillColor: [hoveredCluster, selectedCellTypes && selectedCellTypes[sampleId] ? selectedCellTypes[sampleId] : [], cellTypeColors, sampleId, shouldShowCellTypes, clusterColorMap, clusterCount],
+                    getLineColor: [hoveredCluster, sampleId, clusterColorMap, clusterCount],
                     getRadius: [sampleId, hoveredCluster],
-                    getLineWidth: [hoveredCluster, sampleId, cellToClusterMap.size],
+                    getLineWidth: [hoveredCluster, sampleId, clusterCount],
                 },
                 transitions: {
                     getPosition: 0,
@@ -2469,7 +2466,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, mainViewState, clusterColorMappings]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, clusterMapsBySample, geneColorMap, selectedGenes, kosaraDataBySample]);
 
     // Generate trajectory guideline layer
     const generateTrajectoryGuidelineLayer = useCallback(() => {
@@ -3427,6 +3424,7 @@ export const SampleViewer = ({
     useEffect(() => {
         const handleNativeMouseMove = (event) => {
             if (!containerRef.current || !mainViewState) return;
+            if (!magnifierVisible) return;
 
             const rect = containerRef.current.getBoundingClientRect();
             const x = event.clientX - rect.left;
@@ -3454,8 +3452,8 @@ export const SampleViewer = ({
             }
         };
 
-        // Only add listener when magnifier could be used
-        if (containerRef.current) {
+        // Only add listener when magnifier is visible (avoid per-frame re-renders otherwise)
+        if (containerRef.current && magnifierVisible) {
             containerRef.current.addEventListener('mousemove', handleNativeMouseMove);
             return () => {
                 if (containerRef.current) {
@@ -3463,7 +3461,7 @@ export const SampleViewer = ({
                 }
             };
         }
-    }, [mainViewState]);
+    }, [mainViewState, magnifierVisible]);
 
     // Initialize magnifier position when it becomes visible
     useEffect(() => {
@@ -3700,77 +3698,106 @@ export const SampleViewer = ({
                     viewState={deckViewState}
                     onViewStateChange={handleViewStateChange}
                     onClick={handleMapClick}
-                    onHover={(info) => {
-                        // Handle trajectory hover for coverage area display
-                        if (info && info.object && info.layer && info.layer.id) {
-                            const layerId = info.layer.id;
-                            if (layerId.includes('existing-trajectory-line-') || layerId.includes('existing-trajectory-arrow-')) {
-                                if (info.picked && info.object.trajectory) {
-                                    setHoveredTrajectory({
-                                        trajectory: info.object.trajectory,
-                                        area: info.object.area,
-                                        startPos: info.object.startPos,
-                                        endPos: info.object.endPos
-                                    });
-                                } else {
-                                    setHoveredTrajectory(null);
-                                }
-                            } else {
-                                // Clear trajectory hover when hovering over other elements
-                                setHoveredTrajectory(null);
-                            }
-                        } else {
-                            // Clear trajectory hover when not hovering over anything
-                            setHoveredTrajectory(null);
-                        }
-
-                        // Preserve existing mouse-move behavior
+                    onHover={(info, event) => {
+                        // Preserve existing mouse-move behavior (drawing preview / magnifier)
                         handleMouseMove(info);
 
-                        // Show tooltip for cells and kosara polygons
-                        if (info && info.object && info.layer && info.layer.id) {
-                            const layerId = info.layer.id;
-                            if (layerId.startsWith('kosara-polygons-')) {
-                                const sampleId = layerId.replace('kosara-polygons-', '');
-                                const { id, cell_type, ratios, total_expression } = info.object || {};
-                                setHoveredCell({
-                                    id,
-                                    sampleId,
-                                    cell_type,
-                                    ratios,
-                                    total_expression,
-                                    x: info.x,
-                                    y: info.y
-                                });
-                            } else if (layerId.startsWith('single-gene-expression-')) {
-                                const sampleId = layerId.replace('single-gene-expression-', '');
-                                const { id, cell_type, expression } = info.object || {};
-                                // Get the gene name from the stored single gene data
-                                const geneName = singleGeneDataBySample[sampleId]?.geneName;
-                                setHoveredCell({
-                                    id,
-                                    sampleId,
-                                    cell_type,
-                                    expression,
-                                    geneName,  // Add gene name to the hovered cell info
-                                    x: info.x,
-                                    y: info.y
-                                });
-                            } else if (layerId.startsWith('cells-')) {
-                                const sampleId = layerId.split('-')[1];
-                                const { id, cell_type } = info.object || {};
-                                setHoveredCell({
-                                    id,
-                                    sampleId,
-                                    cell_type,
-                                    x: info.x,
-                                    y: info.y
-                                });
-                            } else {
-                                setHoveredCell(null);
-                            }
+                        // Avoid hover-driven React updates while dragging (pan/zoom)
+                        if (event?.isDragging) {
+                            hoverPendingRef.current = { hoveredCell: null, hoveredTrajectory: null, hoverKey: null };
                         } else {
-                            setHoveredCell(null);
+                            // Trajectory hover for coverage area display
+                            let nextHoveredTrajectory = null;
+                            if (info && info.object && info.layer && info.layer.id) {
+                                const layerId = info.layer.id;
+                                if (layerId.includes('existing-trajectory-line-') || layerId.includes('existing-trajectory-arrow-')) {
+                                    if (info.picked && info.object.trajectory) {
+                                        nextHoveredTrajectory = {
+                                            trajectory: info.object.trajectory,
+                                            area: info.object.area,
+                                            startPos: info.object.startPos,
+                                            endPos: info.object.endPos
+                                        };
+                                    }
+                                }
+                            }
+
+                            // Tooltip for cells and kosara polygons
+                            let nextHoveredCell = null;
+                            let hoverKey = null;
+                            if (info && info.object && info.layer && info.layer.id && info.picked) {
+                                const layerId = info.layer.id;
+                                if (layerId.startsWith('kosara-polygons-')) {
+                                    const sampleId = layerId.replace('kosara-polygons-', '');
+                                    const { id, cell_type, ratios, total_expression } = info.object || {};
+                                    nextHoveredCell = {
+                                        id,
+                                        sampleId,
+                                        cell_type,
+                                        ratios,
+                                        total_expression,
+                                        x: info.x,
+                                        y: info.y
+                                    };
+                                    hoverKey = `kosara:${sampleId}:${String(id)}`;
+                                } else if (layerId.startsWith('single-gene-expression-')) {
+                                    const sampleId = layerId.replace('single-gene-expression-', '');
+                                    const { id, cell_type, expression } = info.object || {};
+                                    const geneName = singleGeneDataBySample[sampleId]?.geneName;
+                                    nextHoveredCell = {
+                                        id,
+                                        sampleId,
+                                        cell_type,
+                                        expression,
+                                        geneName,
+                                        x: info.x,
+                                        y: info.y
+                                    };
+                                    hoverKey = `singleGene:${sampleId}:${String(id)}:${geneName || ''}`;
+                                } else if (layerId.startsWith('cells-')) {
+                                    const sampleId = layerId.split('-')[1];
+                                    const { id, cell_type } = info.object || {};
+                                    nextHoveredCell = {
+                                        id,
+                                        sampleId,
+                                        cell_type,
+                                        x: info.x,
+                                        y: info.y
+                                    };
+                                    hoverKey = `cell:${sampleId}:${String(id)}`;
+                                }
+                            }
+
+                            hoverPendingRef.current = { hoveredCell: nextHoveredCell, hoveredTrajectory: nextHoveredTrajectory, hoverKey };
+                        }
+
+                        if (hoverRafRef.current == null) {
+                            hoverRafRef.current = requestAnimationFrame(() => {
+                                hoverRafRef.current = null;
+                                const pending = hoverPendingRef.current;
+                                hoverPendingRef.current = null;
+                                if (!pending) return;
+
+                                // Skip updating state if we're still on the same object
+                                if (pending.hoverKey === lastHoverKeyRef.current) {
+                                    if (pending.hoveredTrajectory === null) {
+                                        setHoveredTrajectory(prev => (prev === null ? prev : null));
+                                    } else {
+                                        setHoveredTrajectory(prev => {
+                                            if (!prev) return pending.hoveredTrajectory;
+                                            const prevId = prev?.trajectory?.id;
+                                            const nextId = pending.hoveredTrajectory?.trajectory?.id;
+                                            if (prevId && nextId && prevId === nextId) return prev;
+                                            return pending.hoveredTrajectory;
+                                        });
+                                    }
+                                    return;
+                                }
+
+                                lastHoverKeyRef.current = pending.hoverKey;
+                                setHoveredCell(pending.hoveredCell);
+                                setHoveredTrajectory(pending.hoveredTrajectory);
+                            });
                         }
                     }}
                     controller={deckController}
