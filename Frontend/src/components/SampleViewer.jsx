@@ -204,7 +204,8 @@ export const SampleViewer = ({
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
     const preloadedImageRefs = useRef({}); // Cache actual Image objects for instant display
-
+    const [minimapThumbnails, setMinimapThumbnails] = useState({}); // { sampleId: dataUrl }
+    const minimapThumbnailJobsRef = useRef(new Set());
 
     const radioOptions = [
         {
@@ -786,9 +787,60 @@ export const SampleViewer = ({
         return { x: screenX, y: screenY };
     };
 
+    // Precompute minimap layout once per sample/image change.
+    const minimapLayout = useMemo(() => {
+        if (!selectedSamples.length) return null;
+
+        let totalLeft = Infinity;
+        let totalRight = -Infinity;
+        let totalTop = Infinity;
+        let totalBottom = -Infinity;
+
+        selectedSamples.forEach(sample => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            if (imageSize) {
+                totalLeft = Math.min(totalLeft, offset[0]);
+                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
+                totalTop = Math.min(totalTop, offset[1]);
+                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
+            }
+        });
+
+        if (totalLeft === Infinity) return null;
+
+        const totalWidth = Math.max(1, totalRight - totalLeft);
+        const totalHeight = Math.max(1, totalBottom - totalTop);
+
+        const tiles = selectedSamples.map((sample) => {
+            const imageSize = imageSizes[sample.id];
+            const offset = sampleOffsets[sample.id] || [0, 0];
+            if (!imageSize) return null;
+
+            return {
+                sample,
+                sampleId: sample.id,
+                sampleName: sample.name || sample.id,
+                imageUrl: minimapThumbnails[sample.id] || null,
+                relativeLeft: (offset[0] - totalLeft) / totalWidth,
+                relativeTop: (offset[1] - totalTop) / totalHeight,
+                relativeWidth: imageSize[0] / totalWidth,
+                relativeHeight: imageSize[1] / totalHeight,
+            };
+        }).filter(Boolean);
+
+        return {
+            totalLeft,
+            totalTop,
+            totalWidth,
+            totalHeight,
+            tiles,
+        };
+    }, [selectedSamples, imageSizes, sampleOffsets, minimapThumbnails]);
+
     // Calculate minimap viewport bounds based on current view state
     const getMinimapViewportBounds = useCallback(() => {
-        if (!mainViewState || !containerSize.width || !selectedSamples.length) return null;
+        if (!mainViewState || !containerSize.width || !minimapLayout) return null;
 
         // Calculate the world bounds of the current viewport
         const scale = Math.pow(2, mainViewState.zoom);
@@ -802,27 +854,7 @@ export const SampleViewer = ({
             bottom: mainViewState.target[1] + halfHeight
         };
 
-        // Calculate total world bounds for all samples
-        let totalLeft = Infinity;
-        let totalRight = -Infinity;
-        let totalTop = Infinity;
-        let totalBottom = -Infinity;
-
-        selectedSamples.forEach(sample => {
-            const imageSize = imageSizes[sample.id];
-            const offset = sampleOffsets[sample.id] || [0, 0];
-            if (imageSize) {
-                totalLeft = Math.min(totalLeft, offset[0]);
-                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
-                totalTop = Math.min(totalTop, offset[1]);
-                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
-            }
-        });
-
-        if (totalLeft === Infinity) return null;
-
-        const totalWidth = totalRight - totalLeft;
-        const totalHeight = totalBottom - totalTop;
+        const { totalLeft, totalTop, totalWidth, totalHeight } = minimapLayout;
 
         // Convert to relative coordinates within the total combined area
         const relativeBounds = {
@@ -833,60 +865,29 @@ export const SampleViewer = ({
         };
 
         return relativeBounds;
-    }, [mainViewState, containerSize, selectedSamples, imageSizes, sampleOffsets]);
+    }, [mainViewState, containerSize, minimapLayout]);
 
     // Function to detect which sample was clicked in the minimap
     const getSampleFromMinimapClick = useCallback((clickX, clickY) => {
-        if (!selectedSamples.length) return null;
-
-        // Calculate total world bounds for all samples
-        let totalLeft = Infinity;
-        let totalRight = -Infinity;
-        let totalTop = Infinity;
-        let totalBottom = -Infinity;
-
-        selectedSamples.forEach(sample => {
-            const imageSize = imageSizes[sample.id];
-            const offset = sampleOffsets[sample.id] || [0, 0];
-            if (imageSize) {
-                totalLeft = Math.min(totalLeft, offset[0]);
-                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
-                totalTop = Math.min(totalTop, offset[1]);
-                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
-            }
-        });
-
-        if (totalLeft === Infinity) return null;
-
-        const totalWidth = totalRight - totalLeft;
-        const totalHeight = totalBottom - totalTop;
+        if (!minimapLayout) return null;
 
         // Check which sample contains the click coordinates
-        for (const sample of selectedSamples) {
-            const imageSize = imageSizes[sample.id];
-            const offset = sampleOffsets[sample.id] || [0, 0];
-
-            if (!imageSize) continue;
-
-            // Calculate relative position and size within the total bounds
-            const relativeLeft = (offset[0] - totalLeft) / totalWidth;
-            const relativeTop = (offset[1] - totalTop) / totalHeight;
-            const relativeWidth = imageSize[0] / totalWidth;
-            const relativeHeight = imageSize[1] / totalHeight;
+        for (const tile of minimapLayout.tiles) {
+            const { relativeLeft, relativeTop, relativeWidth, relativeHeight } = tile;
 
             // Check if click is within this sample's bounds
             if (clickX >= relativeLeft && clickX <= relativeLeft + relativeWidth &&
                 clickY >= relativeTop && clickY <= relativeTop + relativeHeight) {
-                return sample;
+                return tile.sample;
             }
         }
 
         return null;
-    }, [selectedSamples, imageSizes, sampleOffsets]);
+    }, [minimapLayout]);
 
     // Handle minimap click to navigate
     const handleMinimapClick = useCallback((event) => {
-        if (!minimapRef.current || !selectedSamples.length) return;
+        if (!minimapRef.current || !minimapLayout) return;
 
         const rect = minimapRef.current.getBoundingClientRect();
         const x = (event.clientX - rect.left) / rect.width;
@@ -913,27 +914,7 @@ export const SampleViewer = ({
         }
 
         // Fallback to original behavior: pan to clicked position
-        // Calculate total world bounds for all samples
-        let totalLeft = Infinity;
-        let totalRight = -Infinity;
-        let totalTop = Infinity;
-        let totalBottom = -Infinity;
-
-        selectedSamples.forEach(sample => {
-            const imageSize = imageSizes[sample.id];
-            const offset = sampleOffsets[sample.id] || [0, 0];
-            if (imageSize) {
-                totalLeft = Math.min(totalLeft, offset[0]);
-                totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
-                totalTop = Math.min(totalTop, offset[1]);
-                totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
-            }
-        });
-
-        if (totalLeft === Infinity) return;
-
-        const totalWidth = totalRight - totalLeft;
-        const totalHeight = totalBottom - totalTop;
+        const { totalLeft, totalTop, totalWidth, totalHeight } = minimapLayout;
 
         // Convert relative coordinates to world coordinates
         const worldX = totalLeft + x * totalWidth;
@@ -944,7 +925,71 @@ export const SampleViewer = ({
             ...prev,
             target: [worldX, worldY, 0]
         }));
-    }, [selectedSamples, imageSizes, sampleOffsets, getSampleFromMinimapClick]);
+    }, [minimapLayout, getSampleFromMinimapClick, imageSizes, sampleOffsets]);
+
+    const minimapTilesContent = useMemo(() => {
+        if (!minimapLayout) return null;
+
+        return minimapLayout.tiles.map(tile => (
+            <div
+                key={tile.sampleId}
+                style={{
+                    position: 'absolute',
+                    left: `${tile.relativeLeft * 100}%`,
+                    top: `${tile.relativeTop * 100}%`,
+                    width: `${tile.relativeWidth * 100}%`,
+                    height: `${tile.relativeHeight * 100}%`,
+                    cursor: 'pointer',
+                    border: '1px solid rgba(24, 144, 255, 0.3)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                    boxSizing: 'border-box'
+                }}
+                title={`Click to center on ${tile.sampleName}`}
+            >
+                {tile.imageUrl ? (
+                    <img
+                        src={tile.imageUrl}
+                        alt={`Minimap ${tile.sampleName}`}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block',
+                            pointerEvents: 'none'
+                        }}
+                        draggable={false}
+                        loading="lazy"
+                        decoding="async"
+                    />
+                ) : (
+                    <div style={{ width: '100%', height: '100%', backgroundColor: '#d9d9d9' }} />
+                )}
+                <div
+                    style={{
+                        position: 'absolute',
+                        bottom: '2px',
+                        left: '2px',
+                        right: '2px',
+                        fontSize: '8px',
+                        fontWeight: 'bold',
+                        color: 'white',
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        padding: '1px 3px',
+                        borderRadius: '2px',
+                        textAlign: 'center',
+                        textShadow: '1px 1px 1px rgba(0, 0, 0, 0.8)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        pointerEvents: 'none'
+                    }}
+                >
+                    {tile.sampleName}
+                </div>
+            </div>
+        ));
+    }, [minimapLayout]);
 
     // Toggle minimap with fade animation
     const toggleMinimapVisible = useCallback(() => {
@@ -2327,7 +2372,7 @@ export const SampleViewer = ({
         // This prevents clicks on spots from interfering with drawing.
         const pickingEnabled = !isDrawing && !isTrajectoryMode && !isAreaTooltipVisible && !isAreaEditPopupVisible;
 
-        return selectedSamples.flatMap(sample => {
+        const built = selectedSamples.flatMap(sample => {
             const sampleId = sample.id;
             const mode = radioCellGeneModes[sampleId];
 
@@ -2338,10 +2383,12 @@ export const SampleViewer = ({
 
             // Check if sample is 16um to adjust base radius
             const is16um = sample.name && sample.name.includes('16um');
-            const baseRadius = is16um ? 10 : 5;
+            const baseRadiusRaw = is16um ? 10 : 5;
+            const baseRadius = baseRadiusRaw;
 
             // Cap the on-screen radius to prevent GPU overdraw at extreme zoom
-            const radiusMaxPixels = is16um ? 80 : 60;
+            const radiusMaxRaw = is16um ? 80 : 60;
+            const radiusMaxPixels = radiusMaxRaw;
 
             // Keep point size stable across zoom to avoid massive overdraw at high zoom
             // and to keep layers stable (no recreation) while panning/zooming.
@@ -2688,6 +2735,8 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
+
+        return built;
     }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, singleGeneWorldDataBySample, clusterMapsBySample, geneColorMap, selectedGenes, kosaraDataBySample, isDrawing, isTrajectoryMode, isAreaTooltipVisible, isAreaEditPopupVisible]);
 
     // Generate trajectory guideline layer
@@ -3513,6 +3562,99 @@ export const SampleViewer = ({
             isMounted = false;
         };
     }, [selectedSamples]);
+
+    useEffect(() => {
+        const currentSampleIds = new Set(selectedSamples.map(sample => sample.id));
+        minimapThumbnailJobsRef.current.forEach(sampleId => {
+            if (!currentSampleIds.has(sampleId)) {
+                minimapThumbnailJobsRef.current.delete(sampleId);
+            }
+        });
+
+        setMinimapThumbnails(prev => {
+            let changed = false;
+            const next = {};
+            Object.entries(prev).forEach(([sampleId, dataUrl]) => {
+                if (currentSampleIds.has(sampleId)) {
+                    next[sampleId] = dataUrl;
+                } else {
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [selectedSamples]);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+
+        const schedule = (fn) => {
+            if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+                window.requestIdleCallback(fn, { timeout: 120 });
+            } else {
+                setTimeout(fn, 0);
+            }
+        };
+
+        const createThumbnail = (sampleId, sourceImage) => {
+            if (!sourceImage || !sourceImage.naturalWidth || !sourceImage.naturalHeight) return;
+
+            const maxDimension = 220;
+            const scale = Math.min(1, maxDimension / Math.max(sourceImage.naturalWidth, sourceImage.naturalHeight));
+            const thumbWidth = Math.max(1, Math.round(sourceImage.naturalWidth * scale));
+            const thumbHeight = Math.max(1, Math.round(sourceImage.naturalHeight * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = thumbWidth;
+            canvas.height = thumbHeight;
+
+            const ctx = canvas.getContext('2d', { alpha: false });
+            if (!ctx) return;
+
+            ctx.drawImage(sourceImage, 0, 0, thumbWidth, thumbHeight);
+            const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.72);
+
+            setMinimapThumbnails(prev => {
+                if (prev[sampleId] === thumbnailDataUrl) return prev;
+                return {
+                    ...prev,
+                    [sampleId]: thumbnailDataUrl,
+                };
+            });
+        };
+
+        selectedSamples.forEach(sample => {
+            const sampleId = sample.id;
+            if (!hiresImages[sampleId] || minimapThumbnails[sampleId] || minimapThumbnailJobsRef.current.has(sampleId)) {
+                return;
+            }
+
+            minimapThumbnailJobsRef.current.add(sampleId);
+
+            const finishJob = () => {
+                minimapThumbnailJobsRef.current.delete(sampleId);
+            };
+
+            const cachedImage = preloadedImageRefs.current[sampleId];
+            if (cachedImage && cachedImage.complete) {
+                schedule(() => {
+                    createThumbnail(sampleId, cachedImage);
+                    finishJob();
+                });
+                return;
+            }
+
+            const img = new Image();
+            img.onload = () => {
+                schedule(() => {
+                    createThumbnail(sampleId, img);
+                    finishJob();
+                });
+            };
+            img.onerror = finishJob;
+            img.src = hiresImages[sampleId];
+        });
+    }, [selectedSamples, hiresImages, minimapThumbnails]);
 
     // Check if all images are loaded and call callback
     useEffect(() => {
@@ -4346,111 +4488,7 @@ export const SampleViewer = ({
                             position: 'relative',
                             backgroundColor: '#f0f0f0'
                         }}>
-                            {(() => {
-                                // Calculate total world bounds for positioning
-                                let totalLeft = Infinity;
-                                let totalRight = -Infinity;
-                                let totalTop = Infinity;
-                                let totalBottom = -Infinity;
-
-                                selectedSamples.forEach(sample => {
-                                    const imageSize = imageSizes[sample.id];
-                                    const offset = sampleOffsets[sample.id] || [0, 0];
-                                    if (imageSize) {
-                                        totalLeft = Math.min(totalLeft, offset[0]);
-                                        totalRight = Math.max(totalRight, offset[0] + imageSize[0]);
-                                        totalTop = Math.min(totalTop, offset[1]);
-                                        totalBottom = Math.max(totalBottom, offset[1] + imageSize[1]);
-                                    }
-                                });
-
-                                if (totalLeft === Infinity) return null;
-
-                                const totalWidth = totalRight - totalLeft;
-                                const totalHeight = totalBottom - totalTop;
-
-                                // Render each sample image positioned within the composite minimap
-                                return selectedSamples.map(sample => {
-                                    const imageSize = imageSizes[sample.id];
-                                    const offset = sampleOffsets[sample.id] || [0, 0];
-
-                                    if (!imageSize) return null;
-
-                                    // Calculate relative position and size within the total bounds
-                                    const relativeLeft = ((offset[0] - totalLeft) / totalWidth) * 100;
-                                    const relativeTop = ((offset[1] - totalTop) / totalHeight) * 100;
-                                    const relativeWidth = (imageSize[0] / totalWidth) * 100;
-                                    const relativeHeight = (imageSize[1] / totalHeight) * 100;
-
-                                    return (
-                                        <div
-                                            key={sample.id}
-                                            style={{
-                                                position: 'absolute',
-                                                left: `${relativeLeft}%`,
-                                                top: `${relativeTop}%`,
-                                                width: `${relativeWidth}%`,
-                                                height: `${relativeHeight}%`,
-                                                cursor: 'pointer',
-                                                border: '1px solid rgba(24, 144, 255, 0.3)',
-                                                borderRadius: '2px',
-                                                overflow: 'hidden',
-                                                transition: 'all 0.2s ease',
-                                                boxSizing: 'border-box'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.target.style.border = '2px solid #1890ff';
-                                                e.target.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.4)';
-                                                e.target.style.transform = 'scale(1.02)';
-                                                e.target.style.zIndex = '3';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.target.style.border = '1px solid rgba(24, 144, 255, 0.3)';
-                                                e.target.style.boxShadow = 'none';
-                                                e.target.style.transform = 'scale(1)';
-                                                e.target.style.zIndex = '1';
-                                            }}
-                                            title={`Click to center on ${sample.name}`}
-                                        >
-                                            <img
-                                                src={`/${sample.id}_full.jpg`}
-                                                alt={`Minimap ${sample.name}`}
-                                                style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'cover',
-                                                    display: 'block',
-                                                    pointerEvents: 'none'
-                                                }}
-                                                draggable={false}
-                                            />
-                                            {/* Sample label overlay */}
-                                            <div
-                                                style={{
-                                                    position: 'absolute',
-                                                    bottom: '2px',
-                                                    left: '2px',
-                                                    right: '2px',
-                                                    fontSize: '8px',
-                                                    fontWeight: 'bold',
-                                                    color: 'white',
-                                                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                                                    padding: '1px 3px',
-                                                    borderRadius: '2px',
-                                                    textAlign: 'center',
-                                                    textShadow: '1px 1px 1px rgba(0, 0, 0, 0.8)',
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    pointerEvents: 'none'
-                                                }}
-                                            >
-                                                {sample.name || sample.id}
-                                            </div>
-                                        </div>
-                                    );
-                                });
-                            })()}
+                            {minimapTilesContent}
                         </div>
 
                         {/* Viewport indicator */}
