@@ -272,6 +272,56 @@ export const SampleViewer = ({
         }, {});
     }, [selectedSamples, coordinatesData, sampleOffsets]);
 
+    // Precompute single-gene world-coordinates once per data/offset change.
+    // Critical for performance: during pan/zoom we should avoid rebuilding large arrays,
+    // and we should not draw fully transparent (expression=0) points.
+    const singleGeneWorldDataBySample = useMemo(() => {
+        const all = {};
+        const nonZero = {};
+
+        selectedSamples.forEach(sample => {
+            const sampleId = sample.id;
+            const singleGeneData = singleGeneDataBySample[sampleId];
+            const cells = singleGeneData?.cells;
+            if (!Array.isArray(cells) || cells.length === 0) return;
+
+            const offset = sampleOffsets[sampleId] || [0, 0];
+
+            const allCells = new Array(cells.length);
+            const nonZeroCells = [];
+
+            for (let i = 0; i < cells.length; i++) {
+                const cell = cells[i] || {};
+                const expression = Number(cell.expression) || 0;
+                const entry = {
+                    ...cell,
+                    expression,
+                    x: (cell.cell_x || 0) + offset[0],
+                    y: (cell.cell_y || 0) + offset[1]
+                };
+                allCells[i] = entry;
+                if (expression > 0) nonZeroCells.push(entry);
+            }
+
+            all[sampleId] = allCells;
+            nonZero[sampleId] = nonZeroCells;
+        });
+
+        return { all, nonZero };
+    }, [selectedSamples, singleGeneDataBySample, sampleOffsets]);
+
+    // On Retina displays, rendering dense single-gene layers at devicePixelRatio=2 can be a bottleneck.
+    // Drop DPR to 1 only when single-gene mode is active and point count is large.
+    const deckUseDevicePixels = useMemo(() => {
+        let total = 0;
+        for (const sample of selectedSamples) {
+            const sampleId = sample.id;
+            if (radioCellGeneModes?.[sampleId] !== 'genes') continue;
+            total += (singleGeneWorldDataBySample.nonZero[sampleId]?.length || 0);
+        }
+        return total > 40000 ? 1 : true;
+    }, [selectedSamples, radioCellGeneModes, singleGeneWorldDataBySample]);
+
     // Function to load Kosara data for a specific sample
     const loadKosaraDataForSample = async (sampleId, genes) => {
         if (!genes || genes.length === 0) return;
@@ -2300,13 +2350,10 @@ export const SampleViewer = ({
             // If in gene mode and single gene data available, draw single gene expression visualization
             if (mode === 'genes' && singleGeneDataBySample[sampleId]?.cells?.length > 0) {
                 const singleGeneData = singleGeneDataBySample[sampleId];
-                const offset = sampleOffsets[sampleId] || [0, 0];
-
-                const expressionData = singleGeneData.cells.map(cell => ({
-                    ...cell,
-                    x: (cell.cell_x || 0) + offset[0],
-                    y: (cell.cell_y || 0) + offset[1]
-                }));
+                // Draw only non-zero expression points to reduce GPU load during pan/zoom.
+                // Keep a separate "all cells" array for overlays that shouldn't depend on expression.
+                const expressionData = singleGeneWorldDataBySample.nonZero[sampleId] || [];
+                const allGeneCells = singleGeneWorldDataBySample.all[sampleId] || [];
 
                 const layers = [new ScatterplotLayer({
                     id: `single-gene-expression-${sampleId}`,
@@ -2336,7 +2383,6 @@ export const SampleViewer = ({
                     radiusMaxPixels,
                     parameters: { depthTest: false, blend: true },
                     updateTriggers: {
-                        data: [singleGeneData, sampleId],
                         getFillColor: [singleGeneData.min_expression, singleGeneData.max_expression, singleGeneData.geneName, geneColorMap[singleGeneData.geneName]],
                         getRadius: [sampleId]
                     },
@@ -2349,7 +2395,7 @@ export const SampleViewer = ({
 
                 // Create overlay for cells with cluster assignments
                 if (clusterCount > 0 && cellToClusterMap) {
-                    const clusterData = expressionData.filter(d => cellToClusterMap.has(String(d.id)));
+                    const clusterData = allGeneCells.filter(d => cellToClusterMap.has(String(d.id)));
                     
                     layers.push(new ScatterplotLayer({
                         id: `single-gene-clusters-${sampleId}`,
@@ -2396,7 +2442,7 @@ export const SampleViewer = ({
                 // Add a highlight overlay for hovered cells (on top of cluster colors)
                 const hoveredSet = hoveredIdsSetBySample[sampleId] || null;
                 if (hoveredSet) {
-                    const highlightData = expressionData.filter(d => hoveredSet.has(String(d.id)));
+                    const highlightData = allGeneCells.filter(d => hoveredSet.has(String(d.id)));
 
                     layers.push(new ScatterplotLayer({
                         id: `single-gene-highlight-${sampleId}`,
@@ -2642,7 +2688,7 @@ export const SampleViewer = ({
                 }
             })];
         }).filter(Boolean);
-    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, clusterMapsBySample, geneColorMap, selectedGenes, kosaraDataBySample, isDrawing, isTrajectoryMode, isAreaTooltipVisible, isAreaEditPopupVisible]);
+    }, [selectedSamples, filteredCellData, hoveredCluster, hoveredIdsSetBySample, selectedCellTypes, cellTypeColors, radioCellGeneModes, kosaraPolygonsBySample, singleGeneDataBySample, singleGeneWorldDataBySample, clusterMapsBySample, geneColorMap, selectedGenes, kosaraDataBySample, isDrawing, isTrajectoryMode, isAreaTooltipVisible, isAreaEditPopupVisible]);
 
     // Generate trajectory guideline layer
     const generateTrajectoryGuidelineLayer = useCallback(() => {
@@ -3873,6 +3919,7 @@ export const SampleViewer = ({
                     views={[mainView]}
                     viewState={deckViewState}
                     onViewStateChange={handleViewStateChange}
+                    useDevicePixels={deckUseDevicePixels}
                     onClick={handleMapClick}
                     onHover={(info, event) => {
                         // Preserve existing mouse-move behavior (drawing preview / magnifier)
