@@ -672,7 +672,7 @@ function App() {
                                       onClick={() => handleCloseUmapDataset(dataset)}
                                       style={{
                                         position: "absolute",
-                                        top: "2px",
+                                        top: "5px",
                                         right: "2px",
                                         zIndex: 10,
                                         color: "#999",
