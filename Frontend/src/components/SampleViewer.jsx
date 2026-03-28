@@ -203,8 +203,10 @@ export const SampleViewer = ({
 
     // Add state for preloaded high-res images
     const [hiresImages, setHiresImages] = useState({}); // { sampleId: imageUrl }
+    const hiresImagesRef = useRef({});
     const [decodedHiresImages, setDecodedHiresImages] = useState({}); // { sampleId: true/false }
     const preloadedImageRefs = useRef({}); // Cache actual Image objects for instant display
+    const stableLayerImageBySampleRef = useRef({}); // Keep last valid layer image source per sample
     const [minimapThumbnails, setMinimapThumbnails] = useState({}); // { sampleId: dataUrl }
     const minimapThumbnailJobsRef = useRef(new Set());
 
@@ -2037,17 +2039,20 @@ export const SampleViewer = ({
     }));
 
     const handleViewStateChange = useCallback(({ viewState, viewId }) => {
-        if (viewId !== 'main') return;
+        if (viewId && viewId !== 'main') return;
 
-        // Throttle setState to animation frames to avoid excessive React renders during pan/zoom.
-        // Keep max/min zoom stable so DeckGL doesn't change controller bounds per interaction.
-        const pendingState = {
-            ...viewState,
-            maxZoom: 2.5,
-            minZoom: -5
-        };
+        const nextViewState = (viewState && viewState.main) ? viewState.main : viewState;
+        if (!nextViewState) return;
 
-        viewStatePendingRef.current = pendingState;
+        // Throttle setState to animation frames to avoid flicker during zoom
+        const nextState = (prev => ({
+            ...prev,
+            ...nextViewState,
+            maxZoom: prev?.maxZoom ?? 2.5,
+            minZoom: prev?.minZoom ?? -5
+        }))(mainViewStateRef.current || mainViewState);
+
+        viewStatePendingRef.current = nextState;
         if (viewStateRafRef.current == null) {
             viewStateRafRef.current = requestAnimationFrame(() => {
                 viewStateRafRef.current = null;
@@ -2072,7 +2077,7 @@ export const SampleViewer = ({
                 });
             });
         }
-    }, []);
+    }, [mainViewState]);
 
     // Helper function to check if two areas are the same
     const arePointsSimilar = (points1, points2, tolerance = 1) => {
@@ -2250,7 +2255,10 @@ export const SampleViewer = ({
         const layers = selectedSamples.map(sample => {
             const imageSize = imageSizes[sample.id];
             const offset = sampleOffsets[sample.id] || [0, 0];
-            const resolvedImage = preloadedImageRefs.current[sample.id] || hiresImages[sample.id];
+            const sampleId = String(sample.id);
+            const resolvedImage =
+                preloadedImageRefs.current[sampleId] ||
+                stableLayerImageBySampleRef.current[sampleId];
             const hasImage = !!resolvedImage;
 
             if (!imageSize) return null;
@@ -2277,7 +2285,7 @@ export const SampleViewer = ({
         }).filter(Boolean);
 
         return layers;
-    }, [selectedSamples, imageSizes, sampleOffsets, hiresImages, decodedHiresImages]);
+    }, [selectedSamples, imageSizes, sampleOffsets, decodedHiresImages]);
 
     // Generate cell scatter layers and kosara polygons (gene mode)
     const kosaraPolygonsBySample = useMemo(() => {
@@ -3302,8 +3310,10 @@ export const SampleViewer = ({
         // return [...imgLayers, ...areaLayers, ...guidelineLayers, ...guidelineLayers];
     }, [generateImageLayers, generateCellLayers, generateCustomAreaLayers, generateTrajectoryGuidelineLayer]);
 
-    // Stable viewState wrapper to avoid creating a new object on every render
-    const deckViewState = useMemo(() => ({ main: mainViewState }), [mainViewState]);
+    // Keep viewState keyed by view id after initialization.
+    const deckViewState = useMemo(() => (
+        mainViewState ? { main: mainViewState } : undefined
+    ), [mainViewState]);
 
     useEffect(() => { kosaraLoadingSamplesRef.current = kosaraLoadingSamples; }, [kosaraLoadingSamples]);
 
@@ -3474,51 +3484,63 @@ export const SampleViewer = ({
 
         // Clean up images that are no longer needed
         setHiresImages(prev => {
-            const currentSampleIds = new Set(selectedSamples.map(s => s.id));
+            const currentSampleIds = new Set(selectedSamples.map(s => String(s.id)));
             const filteredImages = {};
+            let changed = false;
             Object.keys(prev).forEach(sampleId => {
                 if (currentSampleIds.has(sampleId)) {
                     filteredImages[sampleId] = prev[sampleId];
                 } else {
+                    changed = true;
                     // Revoke the object URL to free memory
                     try { URL.revokeObjectURL(prev[sampleId]); } catch (e) { }
                 }
             });
-            return filteredImages;
+            return changed ? filteredImages : prev;
         });
 
         setDecodedHiresImages(prev => {
-            const currentSampleIds = new Set(selectedSamples.map(s => s.id));
+            const currentSampleIds = new Set(selectedSamples.map(s => String(s.id)));
             const next = {};
+            let changed = false;
             Object.keys(prev).forEach(sampleId => {
                 if (currentSampleIds.has(sampleId)) {
                     next[sampleId] = prev[sampleId];
+                } else {
+                    changed = true;
                 }
             });
-            return next;
+            return changed ? next : prev;
         });
 
         Object.keys(preloadedImageRefs.current).forEach(sampleId => {
-            if (!selectedSamples.some(sample => sample.id === sampleId)) {
+            if (!selectedSamples.some(sample => String(sample.id) === sampleId)) {
                 delete preloadedImageRefs.current[sampleId];
             }
         });
 
+        Object.keys(stableLayerImageBySampleRef.current).forEach(sampleId => {
+            if (!selectedSamples.some(sample => String(sample.id) === sampleId)) {
+                delete stableLayerImageBySampleRef.current[sampleId];
+            }
+        });
+
         selectedSamples.forEach(sample => {
+            const sampleKey = String(sample.id);
             // Check if image is already loaded or currently being fetched
             setHiresImages(prev => {
                 // If image is already loaded, don't fetch again
-                if (prev[sample.id]) {
+                if (prev[sampleKey]) {
                     return prev;
                 }
 
                 // If already fetching this image, don't start another request
-                if (fetchingImages.current.has(sample.id)) {
+                if (fetchingImages.current.has(sampleKey)) {
                     return prev;
                 }
 
                 // Mark as being fetched
-                fetchingImages.current.add(sample.id);
+                fetchingImages.current.add(sampleKey);
 
                 // Start fetching asynchronously
                 fetch('/api/get_hires_image', {
@@ -3530,47 +3552,62 @@ export const SampleViewer = ({
                         return response.ok ? response.blob() : null;
                     })
                     .then(blob => {
-                        if (blob && isMounted) {
-                            const imageUrl = URL.createObjectURL(blob);
+                        if (!isMounted) return;
 
-                            // Make the image URL available to DeckGL immediately.
-                            // This removes the extra wait where UI was blocked by a separate preload onload.
-                            setHiresImages(currentState => {
-                                if (currentState[sample.id]) {
-                                    try { URL.revokeObjectURL(imageUrl); } catch (e) { }
-                                    return currentState;
-                                }
-                                return {
-                                    ...currentState,
-                                    [sample.id]: imageUrl
-                                };
-                            });
-
-                            // Preload the image into memory for instant display
-                            const img = new Image();
-                            img.onload = () => {
-                                if (isMounted) {
-                                    // Store both URL and preloaded image reference
-                                    preloadedImageRefs.current[sample.id] = img;
-                                    setDecodedHiresImages(prev => ({ ...prev, [sample.id]: true }));
-                                }
-                            };
-                            img.onerror = () => {
-                                console.error(`Failed to preload image for ${sample.id}`);
-                                if (isMounted) {
-                                    setDecodedHiresImages(prev => ({ ...prev, [sample.id]: false }));
-                                }
-                            };
-                            img.decoding = 'async';
-                            img.src = imageUrl;
+                        if (!blob) {
+                            setDecodedHiresImages(prev => ({ ...prev, [sampleKey]: false }));
+                            return;
                         }
+
+                        // Another request may have finished first for this sample.
+                        if (hiresImagesRef.current[sampleKey]) {
+                            setDecodedHiresImages(prev => (
+                                prev[sampleKey] === true ? prev : { ...prev, [sampleKey]: true }
+                            ));
+                            return;
+                        }
+
+                        const imageUrl = URL.createObjectURL(blob);
+
+                        // Make the image URL available for magnifier/fallback flows.
+                        setHiresImages(currentState => {
+                            if (currentState[sampleKey]) {
+                                try { URL.revokeObjectURL(imageUrl); } catch (e) { }
+                                return currentState;
+                            }
+                            return {
+                                ...currentState,
+                                [sampleKey]: imageUrl
+                            };
+                        });
+
+                        // Preload the image into memory for instant display
+                        const img = new Image();
+                        img.onload = () => {
+                            if (isMounted) {
+                                // Store both URL and preloaded image reference
+                                preloadedImageRefs.current[sampleKey] = img;
+                                setDecodedHiresImages(prev => ({ ...prev, [sampleKey]: true }));
+                            }
+                        };
+                        img.onerror = () => {
+                            console.error(`Failed to preload image for ${sample.id}`);
+                            if (isMounted) {
+                                setDecodedHiresImages(prev => ({ ...prev, [sampleKey]: false }));
+                            }
+                        };
+                        img.decoding = 'async';
+                        img.src = imageUrl;
                     })
                     .catch(error => {
                         console.error(`Error fetching image for ${sample.id}:`, error);
+                        if (isMounted) {
+                            setDecodedHiresImages(prev => ({ ...prev, [sampleKey]: false }));
+                        }
                     })
                     .finally(() => {
                         // Remove from fetching set when done
-                        fetchingImages.current.delete(sample.id);
+                        fetchingImages.current.delete(sampleKey);
                     });
 
                 // Return current state immediately (fetch is async)
@@ -3584,7 +3621,21 @@ export const SampleViewer = ({
     }, [selectedSamples]);
 
     useEffect(() => {
-        const currentSampleIds = new Set(selectedSamples.map(sample => sample.id));
+        hiresImagesRef.current = hiresImages;
+    }, [hiresImages]);
+
+    useEffect(() => {
+        selectedSamples.forEach(sample => {
+            const sampleId = String(sample.id);
+            const source = preloadedImageRefs.current[sampleId];
+            if (source) {
+                stableLayerImageBySampleRef.current[sampleId] = source;
+            }
+        });
+    }, [selectedSamples, hiresImages, decodedHiresImages]);
+
+    useEffect(() => {
+        const currentSampleIds = new Set(selectedSamples.map(sample => String(sample.id)));
         minimapThumbnailJobsRef.current.forEach(sampleId => {
             if (!currentSampleIds.has(sampleId)) {
                 minimapThumbnailJobsRef.current.delete(sampleId);
@@ -3676,7 +3727,21 @@ export const SampleViewer = ({
         const allImageLayersReady = selectedSamples.every((sample) => {
             const sampleId = sample.id;
             const size = imageSizes[sampleId];
-            return Boolean(hiresImages[sampleId]) && Boolean(decodedHiresImages[sampleId]) && Array.isArray(size) && size[0] > 0 && size[1] > 0;
+            const hasSize = Array.isArray(size) && size[0] > 0 && size[1] > 0;
+            const decodeStatus = decodedHiresImages[sampleId];
+
+            // true: image fully decoded and usable
+            if (decodeStatus === true) {
+                return Boolean(hiresImages[sampleId]) && hasSize;
+            }
+
+            // false: image failed to load/decode; treat as terminal so global loading can stop
+            if (decodeStatus === false) {
+                return hasSize;
+            }
+
+            // undefined: still in progress
+            return false;
         });
 
         const isViewReady =
@@ -3889,7 +3954,7 @@ export const SampleViewer = ({
     // Cleanup effect for magnifier and images
     useEffect(() => {
         return () => {
-            Object.values(hiresImages).forEach(url => {
+            Object.values(hiresImagesRef.current).forEach(url => {
                 try { URL.revokeObjectURL(url); } catch (e) { }
             });
 
@@ -3902,7 +3967,7 @@ export const SampleViewer = ({
             }
             viewStatePendingRef.current = null;
         };
-    }, [hiresImages]);
+    }, []);
 
     // In handleMouseMove, update magnifier logic to use hiresImages
     useEffect(() => {
