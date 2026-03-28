@@ -3052,9 +3052,9 @@ export const SampleViewer = ({
         customAreas.forEach(area => {
             if (area.trajectories && area.trajectories.length > 0) {
                 area.trajectories.forEach(trajectory => {
-                    const offset = sampleOffsets[area.sampleId] || [0, 0];
-                    const startPos = [trajectory.start[0] + offset[0], trajectory.start[1] + offset[1]];
-                    const endPos = [trajectory.end[0] + offset[0], trajectory.end[1] + offset[1]];
+                    // Stored trajectory coordinates are already in world space.
+                    const startPos = trajectory.start;
+                    const endPos = trajectory.end;
 
                     // Calculate arrow direction
                     const dx = endPos[0] - startPos[0];
@@ -3129,9 +3129,9 @@ export const SampleViewer = ({
         analyzingTrajectories.forEach(analyzingTrajectory => {
             const area = customAreas.find(a => a.id === analyzingTrajectory.areaId);
             if (area) {
-                const offset = sampleOffsets[area.sampleId] || [0, 0];
-                const startPos = [analyzingTrajectory.start[0] + offset[0], analyzingTrajectory.start[1] + offset[1]];
-                const endPos = [analyzingTrajectory.end[0] + offset[0], analyzingTrajectory.end[1] + offset[1]];
+                // Analyzing trajectory coordinates are stored in world space and should not be offset again.
+                const startPos = analyzingTrajectory.start;
+                const endPos = analyzingTrajectory.end;
 
                 // Calculate arrow direction
                 const dx = endPos[0] - startPos[0];

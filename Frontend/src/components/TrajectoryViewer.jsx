@@ -137,14 +137,12 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
             setSelectedTrajectory(null);
             setAvailableGenes([]);
             setSelectedGenes([]);
-            setTrajectoryDataSets([]);
             fetchRegions(selectedSample);
         } else {
             setAvailableRegions([]);
             setSelectedRegion(null);
             setSelectedTrajectory(null);
             setSelectedGenes([]);
-            setTrajectoryDataSets([]);
         }
     }, [selectedSample]);
 
