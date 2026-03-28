@@ -1,7 +1,7 @@
 # Loom  
 
 <div align="center">
-  <img src="Frontend/public/Loom_name.png" alt="Loom Logo" height="260"/><br/>
+  <img src="Frontend/public/Loom_name.png" alt="Loom Logo" height="200"/><br/>
   <!-- <a href="YOUR_WEBSITE">Website</a> • 
   <a href="YOUR_PAPER_LINK">Paper</a> -->
 </div>
