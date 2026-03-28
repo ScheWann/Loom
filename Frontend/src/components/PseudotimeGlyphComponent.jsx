@@ -249,6 +249,42 @@ export const PseudotimeGlyphComponent = ({
         return roiGroups;
     }, [allHighVariableGenes, roiDataSets, highVariableGenesByRoi]);
 
+    // Cascade cleanup when one or more ROI-backed UMAP datasets are removed.
+    // This keeps local selectors/analysis state aligned with App-level deletions.
+    const previousRoiKeysRef = useRef(new Set());
+    useEffect(() => {
+        const currentRoiKeys = new Set(
+            (umapDataSets || [])
+                .map(dataset => dataset?.adata_umap_title)
+                .filter(Boolean)
+        );
+
+        const removedRoiKeys = [...previousRoiKeysRef.current].filter(key => !currentRoiKeys.has(key));
+
+        if (removedRoiKeys.length > 0) {
+            const isRemovedPseudotimeKey = (key) =>
+                removedRoiKeys.some(baseKey => key === baseKey || key.startsWith(`${baseKey}_cluster_`));
+
+            // Selection is index-based; safest behavior on ROI removal is full clear.
+            setSelectedGlyphs(new Set());
+            setSelectedGenes([]);
+            setSearchQuery('');
+            setDisplayOptions(hvgGroupedOptions);
+
+            // Drop trajectory gene-expression traces tied to removed ROI pseudotime keys.
+            setGeneExpressionData(prev => prev.filter(item => !isRemovedPseudotimeKey(item?.adata_umap_title || '')));
+
+            if (hoveredTrajectory && (hoveredTrajectory.adata_umap_title || hoveredTrajectory.source_title)) {
+                const hoveredKey = hoveredTrajectory.adata_umap_title || hoveredTrajectory.source_title;
+                if (isRemovedPseudotimeKey(hoveredKey)) {
+                    setHoveredTrajectory?.(null);
+                }
+            }
+        }
+
+        previousRoiKeysRef.current = currentRoiKeys;
+    }, [umapDataSets, hvgGroupedOptions, hoveredTrajectory, setHoveredTrajectory]);
+
     // Keep displayOptions in sync with HVGs when not actively searching
     useEffect(() => {
         if (!searchQuery) {

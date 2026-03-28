@@ -1421,15 +1421,19 @@ export const SampleViewer = ({
                 return !(sameSample && sameArea);
             }));
 
+            // Notify parent first so we can include pseudotime cascade counts in the toast.
+            const deletionSummary = onAreaDeleted
+                ? onAreaDeleted(deletingArea.sampleId, deletingArea.name)
+                : null;
+
             const relatedTrajectoryCount = (deletingArea.trajectories || []).length;
+            const relatedPseudotimeCount = Number.isFinite(deletionSummary?.relatedPseudotimeCount)
+                ? deletionSummary.relatedPseudotimeCount
+                : 0;
             const umapWord = relatedUmapCount === 1 ? 'UMAP plot' : 'UMAP plots';
             const trajectoryWord = relatedTrajectoryCount === 1 ? 'trajectory' : 'trajectories';
-            message.success(`Deleted area "${deletingArea.name}" and removed ${relatedUmapCount} related ${umapWord}, ${relatedTrajectoryCount} related ${trajectoryWord}.`);
-
-            // Notify parent so TrajectoryViewer can clear dependent selectors/charts.
-            if (onAreaDeleted) {
-                onAreaDeleted(deletingArea.sampleId, deletingArea.name);
-            }
+            const pseudotimeWord = relatedPseudotimeCount === 1 ? 'pseudotime result' : 'pseudotime results';
+            message.success(`Deleted area "${deletingArea.name}" and removed ${relatedUmapCount} related ${umapWord}, ${relatedTrajectoryCount} related ${trajectoryWord}, and ${relatedPseudotimeCount} related ${pseudotimeWord}.`);
         }
         handleAreaEditCancel();
     };

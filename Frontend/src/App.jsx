@@ -369,6 +369,55 @@ function App() {
     if (trajectoryViewerRef.current?.clearAreaRelatedData) {
       trajectoryViewerRef.current.clearAreaRelatedData(sampleId, regionName);
     }
+
+    const relatedUmapTitles = (umapDataSets || [])
+      .filter((dataset) => dataset.sampleId === sampleId && dataset.areaName === regionName)
+      .map((dataset) => dataset.adata_umap_title)
+      .filter(Boolean);
+
+    if (relatedUmapTitles.length === 0) {
+      return { relatedPseudotimeCount: 0 };
+    }
+
+    const isRelatedPseudotimeKey = (key) =>
+      relatedUmapTitles.some((title) => key === title || key.startsWith(`${title}_cluster_`));
+
+    const relatedPseudotimeCount = Object.keys(pseudotimeDataSets || {}).filter(isRelatedPseudotimeKey).length;
+
+    setPseudotimeDataSets((prev) => {
+      const next = {};
+      Object.entries(prev || {}).forEach(([key, value]) => {
+        if (!isRelatedPseudotimeKey(key)) {
+          next[key] = value;
+        }
+      });
+      return next;
+    });
+
+    setPseudotimeLoadingStates((prev) => {
+      const next = {};
+      Object.entries(prev || {}).forEach(([key, value]) => {
+        if (!isRelatedPseudotimeKey(key)) {
+          next[key] = value;
+        }
+      });
+      return next;
+    });
+
+    setHoveredTrajectory((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const hoveredKey = prev.adata_umap_title || prev.source_title;
+      if (hoveredKey && isRelatedPseudotimeKey(hoveredKey)) {
+        return null;
+      }
+
+      return prev;
+    });
+
+    return { relatedPseudotimeCount };
   };
 
   return (
