@@ -12,7 +12,7 @@
 **Loom** is a visual analytics system for spatiotemporal exploration of spatial transcriptomics data, designed to support multi-resolution analysis and cross-sample comparison. Enabling researchers to seamlessly integrate spatial organization, pseudo-temporal progression, and gene expression dynamics through coordinated views and a novel glyph-based encoding.
 
 **Loom: Visual Analysis of Spatiotemporal Dynamics in Spatial Transcriptomics**  
-Siyuan Zhao, Nafiul Nipu, Hossein Fathollahian, Ameen Salahudeen, Hao Chen, Olga Karginova, G. Elisabeta Marai  
+Siyuan Zhao, Nafiul Nipu, Hossein Fathollahian, Hao Chen, Ameen Salahudeen, Olga Karginova, G. Elisabeta Marai  
 Paper: *Under review*
 
 <div align="center">
