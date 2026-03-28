@@ -29,7 +29,8 @@ export const SampleViewer = ({
     trajectoryGenesSample = null,
     trajectoryGuideline = null,
     onTrajectoryAnalysisComplete,
-    onAreaSaved  // Add new callback for when areas are saved
+    onAreaSaved,  // Add new callback for when areas are saved
+    onAreaDeleted
 }) => {
     const containerRef = useRef(null);
     const areaEditPopupRef = useRef(null);
@@ -1420,8 +1421,15 @@ export const SampleViewer = ({
                 return !(sameSample && sameArea);
             }));
 
+            const relatedTrajectoryCount = (deletingArea.trajectories || []).length;
             const umapWord = relatedUmapCount === 1 ? 'UMAP plot' : 'UMAP plots';
-            message.success(`Deleted area "${deletingArea.name}" and removed ${relatedUmapCount} related ${umapWord}.`);
+            const trajectoryWord = relatedTrajectoryCount === 1 ? 'trajectory' : 'trajectories';
+            message.success(`Deleted area "${deletingArea.name}" and removed ${relatedUmapCount} related ${umapWord}, ${relatedTrajectoryCount} related ${trajectoryWord}.`);
+
+            // Notify parent so TrajectoryViewer can clear dependent selectors/charts.
+            if (onAreaDeleted) {
+                onAreaDeleted(deletingArea.sampleId, deletingArea.name);
+            }
         }
         handleAreaEditCancel();
     };

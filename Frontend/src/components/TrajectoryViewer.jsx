@@ -38,6 +38,34 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 regionIdToRefresh && selectedRegion === regionIdToRefresh) {
                 fetchTrajectories(selectedSample, selectedRegion);
             }
+        },
+        clearAreaRelatedData: (sampleIdToClear, regionIdToClear) => {
+            if (!sampleIdToClear || !regionIdToClear) {
+                return;
+            }
+
+            // Remove charts tied to the deleted area.
+            setTrajectoryDataSets(prev => prev.filter(dataset => {
+                const sameSample = dataset.sample_id === sampleIdToClear;
+                const sameRegion = String(dataset.region_id) === String(regionIdToClear);
+                return !(sameSample && sameRegion);
+            }));
+
+            // Drop deleted region from region selector options.
+            setAvailableRegions(prev => prev.filter(region => {
+                const regionId = region?.id;
+                const regionName = region?.name;
+                return String(regionId) !== String(regionIdToClear) && String(regionName) !== String(regionIdToClear);
+            }));
+
+            // If the deleted area is currently selected, clear all downstream selectors/options.
+            if (selectedSample === sampleIdToClear && String(selectedRegion) === String(regionIdToClear)) {
+                setSelectedRegion(null);
+                setAvailableTrajectories([]);
+                setSelectedTrajectory(null);
+                setAvailableGenes([]);
+                setSelectedGenes([]);
+            }
         }
     }), [selectedSample, selectedRegion]);
 

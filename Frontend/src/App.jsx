@@ -364,6 +364,13 @@ function App() {
     }
   };
 
+  // Handler for area deletion - clear TrajectoryViewer datasets and selectors tied to the deleted region
+  const handleAreaDeleted = (sampleId, regionName) => {
+    if (trajectoryViewerRef.current?.clearAreaRelatedData) {
+      trajectoryViewerRef.current.clearAreaRelatedData(sampleId, regionName);
+    }
+  };
+
   return (
     <ConfigProvider theme={customTheme}>
       <div className="App">
@@ -510,6 +517,7 @@ function App() {
                       trajectoryGuideline={trajectoryGuideline}
                       onTrajectoryAnalysisComplete={handleTrajectoryAnalysisComplete}
                       onAreaSaved={handleAreaSaved}
+                      onAreaDeleted={handleAreaDeleted}
                     />
                   </Splitter.Panel>
                   <Splitter.Panel defaultSize="40%" min="40%" max="50%">
