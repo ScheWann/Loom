@@ -424,28 +424,34 @@ function App() {
     <ConfigProvider theme={customTheme}>
       <div className="App">
         <div className="main">
-          {/* select samples */}
-          <div className="selectSamples">
-            <Select
-              className="sample-multi-select app-sample-select"
-              size="small"
-              mode="multiple"
-              placeholder="Select samples"
-              value={tempSamples}
-              onChange={setTempSamples}
-              options={selectOptions}
-              style={{ width: "100%", marginTop: 8, marginBottom: 8 }}
-              maxTagCount="responsive"
-              loading={sampleDataLoading}
-            />
-            {/* <Button
-              size="small"
-              onClick={() => setUploadFormVisible(true)}
-              icon={<PlusOutlined />}
-            /> */}
-            <Button size="small" color="blue" variant="outlined" onClick={confirmSamples}>
-              Confirm
-            </Button>
+          {/* top bar */}
+          <div className="topBar">
+            <div className="appTitle">
+              <img src="/Loom_name.png" alt="Loom" className="appLogo" />
+            </div>
+            {/* select samples */}
+            <div className="selectSamples">
+              <Select
+                className="sample-multi-select app-sample-select"
+                size="small"
+                mode="multiple"
+                placeholder="Select samples"
+                value={tempSamples}
+                onChange={setTempSamples}
+                options={selectOptions}
+                style={{ width: "100%", marginTop: 8, marginBottom: 8 }}
+                maxTagCount="responsive"
+                loading={sampleDataLoading}
+              />
+              {/* <Button
+                size="small"
+                onClick={() => setUploadFormVisible(true)}
+                icon={<PlusOutlined />}
+              /> */}
+              <Button size="small" color="blue" variant="outlined" onClick={confirmSamples}>
+                Confirm
+              </Button>
+            </div>
           </div>
 
           {/* Upload Data Form Modal */}

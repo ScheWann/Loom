@@ -14,8 +14,33 @@ body {
   width: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.topBar {
+  width: 100%;
+  display: flex;
   align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 0 10px;
+  box-sizing: border-box;
+}
+
+.appTitle {
+  min-width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.appLogo {
+  height: 30px;
+  width: auto;
+  max-width: 220px;
+  display: block;
 }
 
 .content {
@@ -28,7 +53,7 @@ body {
 }
 
 .selectSamples {
-  width: 100%;
+  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
