@@ -24,7 +24,6 @@ Paper: *Under review*
 - Supports 2µm / 8µm / 16µm Visium HD data
 - Cross-resolution alignment via spatial coordinate registration
 - Efficient trajectory inference at appropriate resolutions
-- Integration with SPATA2 for trajectory inference  
 - Interactive exploration of spatial trajectories + pseudo-time progression  
 - Comparative analysis across ROIs and samples  
 - Novel glyph-based encoding
