@@ -858,6 +858,27 @@ export const PseudotimeGlyphComponent = ({
         );
     }
 
+    const indexToKey = (i) => (allPseudotimeData[i]?.source_title) || `${i}`;
+    const visibleIndices = allPseudotimeData.map((_, i) => i).filter(i => !hiddenGlyphs.has(indexToKey(i)));
+    const visibleCount = visibleIndices.length;
+
+    if (visibleCount === 0) {
+        return (
+            <div style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                <Empty
+                    description="No pseudotime data available"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+            </div>
+        );
+    }
+
     return (
         <div style={{
             width: '100%',
@@ -912,9 +933,6 @@ export const PseudotimeGlyphComponent = ({
             </div>
 
             {(() => {
-                const indexToKey = (i) => (allPseudotimeData[i]?.source_title) || `${i}`;
-                const visibleIndices = allPseudotimeData.map((_, i) => i).filter(i => !hiddenGlyphs.has(indexToKey(i)));
-                const visibleCount = visibleIndices.length;
                 return (
                     <div style={{
                         width: '100%',
