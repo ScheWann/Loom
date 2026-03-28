@@ -32,6 +32,7 @@ export const SampleViewer = ({
     onAreaSaved  // Add new callback for when areas are saved
 }) => {
     const containerRef = useRef(null);
+    const areaEditPopupRef = useRef(null);
     const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
     const viewStatePendingRef = useRef(null);
     const viewStateRafRef = useRef(null);
@@ -126,6 +127,46 @@ export const SampleViewer = ({
     const [editNeighbors, setEditNeighbors] = useState(10);
     const [editNPcas, setEditNPcas] = useState(30);
     const [editResolutions, setEditResolutions] = useState(1);
+
+    // After the popup renders, clamp it to the viewport using its real DOM size.
+    // This avoids bottom overflow when the content is taller than the estimated height.
+    useEffect(() => {
+        if (!isAreaEditPopupVisible) return;
+        const el = areaEditPopupRef.current;
+        if (!el) return;
+
+        const margin = 10;
+        let rafId = requestAnimationFrame(() => {
+            const popupRect = el.getBoundingClientRect();
+            let nextLeft = editPopupPosition.x;
+            let nextTop = editPopupPosition.y;
+
+            // Horizontal clamp
+            if (popupRect.right > window.innerWidth - margin) {
+                nextLeft -= popupRect.right - (window.innerWidth - margin);
+            }
+            if (popupRect.left < margin) {
+                nextLeft += margin - popupRect.left;
+            }
+
+            // Vertical clamp
+            if (popupRect.bottom > window.innerHeight - margin) {
+                nextTop -= popupRect.bottom - (window.innerHeight - margin);
+            }
+            if (popupRect.top < margin) {
+                nextTop += margin - popupRect.top;
+            }
+
+            // Avoid tiny update loops
+            if (Math.abs(nextLeft - editPopupPosition.x) >= 0.5 || Math.abs(nextTop - editPopupPosition.y) >= 0.5) {
+                setEditPopupPosition({ x: nextLeft, y: nextTop });
+            }
+        });
+
+        return () => {
+            cancelAnimationFrame(rafId);
+        };
+    }, [isAreaEditPopupVisible, editPopupPosition.x, editPopupPosition.y]);
 
     // Trajectory drawing state
     const [isTrajectoryMode, setIsTrajectoryMode] = useState(false);
@@ -1164,46 +1205,46 @@ export const SampleViewer = ({
         setEditNPcas(targetArea.n_pcas || 30);
         setEditResolutions(targetArea.resolutions || 1);
 
-        // Find the rightmost point and vertical center of the area
-        const rightmostPoint = findRightmostPoint(targetArea.points);
-        const verticalCenter = findVerticalCenter(targetArea.points);
-        const areaPosition = { x: rightmostPoint.x, y: verticalCenter.y };
-
-        const screenPos = worldToScreen(areaPosition.x, areaPosition.y);
+        // Position popup near the user's click (screen space) to avoid off-screen placement when zoomed.
+        // DeckGL click info provides x/y in CSS pixels relative to the canvas.
         const container = containerRef.current;
-        const rect = container.getBoundingClientRect();
+        const rect = container?.getBoundingClientRect();
 
         // Popup dimensions
         const popupWidth = 280;
         const popupHeight = 300;
+        const margin = 10;
+        const offset = 20;
 
-        let left = rect.left + screenPos.x + 20;
-        let top = rect.top + screenPos.y - popupHeight / 2;
+        let anchorX = 0;
+        let anchorY = 0;
 
-        // Check if popup would go off the right edge of the screen
-        if (left + popupWidth > window.innerWidth - 10) {
-            left = rect.left + screenPos.x - popupWidth - 20;
+        if (rect && typeof info?.x === 'number' && typeof info?.y === 'number') {
+            anchorX = rect.left + info.x;
+            anchorY = rect.top + info.y;
+        } else {
+            // Fallback: if click screen coords are not available, anchor to the ROI's right edge in world space.
+            const rightmostPoint = findRightmostPoint(targetArea.points);
+            const verticalCenter = findVerticalCenter(targetArea.points);
+            const areaPosition = { x: rightmostPoint.x, y: verticalCenter.y };
+            const screenPos = worldToScreen(areaPosition.x, areaPosition.y);
+            anchorX = (rect?.left || 0) + screenPos.x;
+            anchorY = (rect?.top || 0) + screenPos.y;
         }
 
-        // Ensure popup doesn't go off the left edge of the screen
-        if (left < 10) {
-            left = 10;
+        // Prefer showing to the right of the anchor; flip to left if needed.
+        let left = anchorX + offset;
+        let top = anchorY - popupHeight / 2;
+
+        if (left + popupWidth > window.innerWidth - margin) {
+            left = anchorX - popupWidth - offset;
         }
 
-        // Constrain the top position to stay within the viewport bounds
-        if (top < 10) {
-            top = 10;
-        }
+        // Final clamp to ensure the popup always stays within the viewport.
+        left = Math.max(margin, Math.min(left, window.innerWidth - popupWidth - margin));
+        top = Math.max(margin, Math.min(top, window.innerHeight - popupHeight - margin));
 
-        if (top + popupHeight > window.innerHeight - 10) {
-            // Force to bottom edge of viewport
-            top = window.innerHeight - popupHeight - 10;
-        }
-
-        setEditPopupPosition({
-            x: left,
-            y: top
-        });
+        setEditPopupPosition({ x: left, y: top });
 
         setIsAreaEditPopupVisible(true);
     }, [isDrawing, isAreaTooltipVisible, isTrajectoryMode, customAreas, worldToScreen]);
@@ -4587,6 +4628,7 @@ export const SampleViewer = ({
                         />
 
                         <div
+                            ref={areaEditPopupRef}
                             style={{
                                 position: 'fixed',
                                 left: editPopupPosition.x,
@@ -4598,6 +4640,8 @@ export const SampleViewer = ({
                                 boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
                                 padding: 12,
                                 width: 280,
+                                maxHeight: 'calc(100vh - 20px)',
+                                overflowY: 'auto',
                                 pointerEvents: 'auto'
                             }}
                         >
