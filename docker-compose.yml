@@ -1,0 +1,18 @@
+services:
+  backend:
+    build:
+      context: ./Backend
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./Example_Data:/app/Example_Data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+    ports:
+      - "3003:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

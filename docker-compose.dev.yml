@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: ./Backend
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./Backend:/app/Backend
+      - ./Example_Data:/app/Example_Data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped

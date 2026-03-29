@@ -1735,16 +1735,21 @@ def convert_arrow_width_to_16um_pixels(sample_id, arrow_width_frontend_pixels):
     # Convert frontend pixels to full-resolution pixels
     arrow_width_fullres_pixels = arrow_width_frontend_pixels / current_scale_factor
     
-    # Construct path to 16µm scalefactors
+    # Construct path to 16µm scalefactors based on existing Example_Data naming
     python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-    scalefactors_16um_path = os.path.join(
-        python_dir, 
-        f"{base_sample_id}", 
-        "binned_outputs", 
-        "square_016um", 
-        "spatial", 
-        "scalefactors_json.json"
-    )
+    sample_token = base_sample_id.replace("skin_", "")
+    sample_token_dash = sample_token.replace("_", "-")
+
+    candidate_paths = [
+        os.path.join(python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"),
+        os.path.join(python_dir, f"H1_{sample_token_dash}_scalefactors_json.json"),
+    ]
+    scalefactors_16um_path = next((p for p in candidate_paths if os.path.exists(p)), None)
+
+    if scalefactors_16um_path is None:
+        raise ValueError(
+            f"Could not find 16µm scalefactors for {base_sample_id}. Tried: {candidate_paths}"
+        )
     
     try:
         import json
