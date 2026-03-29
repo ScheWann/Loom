@@ -235,7 +235,7 @@ function App() {
     });
 
     try {
-      const response = await fetch("/upload_spaceranger", {
+      const response = await fetch("/api/upload_spaceranger", {
         method: "POST",
         body: formData,
       });

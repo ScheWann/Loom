@@ -30,10 +30,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN R -e " install.packages('arrow', repos='https://cran.rstudio.com/'); \
     install.packages('remotes', repos='https://cran.rstudio.com/'); \
     install.packages(c('BiocManager'), repos='http://cran.rstudio.com/'); \
-    BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats', 'limma', 'S4Vectors', 'SingleCellExperiment', 'SummarizedExperiment', 'batchelor', 'Matrix.utils', 'slingshot', 'EBImage')); \
+    BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats', 'limma', 'S4Vectors', 'SingleCellExperiment', 'SummarizedExperiment', 'batchelor', 'slingshot', 'EBImage')); \
+    install.packages('https://cran.r-project.org/src/contrib/Archive/grr/grr_0.9.5.tar.gz', repos=NULL, type='source'); \
+    remotes::install_github('cvarrichio/Matrix.utils'); \
     install.packages(c('devtools'), repos='http://cran.rstudio.com/'); \
-    devtools::install_github('kueckelj/confuns'); \
+    install.packages(c('tidyverse'), repos='https://cran.rstudio.com/'); \
+    remotes::install_github('haleyjeppson/ggmosaic') \
+    remotes::install_github('hrbrmstr/ggalt'); \
+    remotes::install_github('kueckelj/confuns'); \
     devtools::install_github('theMILOlab/SPATAData'); \
+    options(timeout=400); \
     devtools::install_github('theMILOlab/SPATA2'); \
     devtools::install_github('xzhoulab/SPARK')"
 
@@ -46,4 +52,4 @@ COPY . .
 
 EXPOSE 5003
 
-CMD ["python", "server.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5003", "--workers", "1", "--threads", "4", "--timeout", "300", "server:app"]

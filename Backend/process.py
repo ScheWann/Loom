@@ -1735,20 +1735,18 @@ def convert_arrow_width_to_16um_pixels(sample_id, arrow_width_frontend_pixels):
     # Convert frontend pixels to full-resolution pixels
     arrow_width_fullres_pixels = arrow_width_frontend_pixels / current_scale_factor
     
-    # Construct path to 16µm scalefactors based on existing Example_Data naming
+    # Construct path to 16µm scalefactors using unified H1- naming
     python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
     sample_token = base_sample_id.replace("skin_", "")
     sample_token_dash = sample_token.replace("_", "-")
 
-    candidate_paths = [
-        os.path.join(python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"),
-        os.path.join(python_dir, f"H1_{sample_token_dash}_scalefactors_json.json"),
-    ]
-    scalefactors_16um_path = next((p for p in candidate_paths if os.path.exists(p)), None)
+    scalefactors_16um_path = os.path.join(
+        python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
+    )
 
-    if scalefactors_16um_path is None:
+    if not os.path.exists(scalefactors_16um_path):
         raise ValueError(
-            f"Could not find 16µm scalefactors for {base_sample_id}. Tried: {candidate_paths}"
+            f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
         )
     
     try:
@@ -1839,9 +1837,19 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
         x0 = float(np.median(D[:,0]))
         y0 = float(np.median(D[:,1]))
         
-        # Load 16µm scalefactors
+        # Load 16µm scalefactors from Example_Data root using unified H1- naming
         python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-        scalefactors_16um_path = os.path.join(python_dir, base_sample_id, "binned_outputs", "square_016um", "spatial", "scalefactors_json.json")
+        sample_token = base_sample_id.replace("skin_", "")
+        sample_token_dash = sample_token.replace("_", "-")
+
+        scalefactors_16um_path = os.path.join(
+            python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
+        )
+
+        if not os.path.exists(scalefactors_16um_path):
+            raise ValueError(
+                f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
+            )
         
         with open(scalefactors_16um_path, 'r') as f:
             scalefactors_16um = json.load(f)
@@ -1990,7 +1998,17 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         
         # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space
         python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-        scalefactors_16um_path = os.path.join(python_dir, base_sample_id, "binned_outputs", "square_016um", "spatial", "scalefactors_json.json")
+        sample_token = base_sample_id.replace("skin_", "")
+        sample_token_dash = sample_token.replace("_", "-")
+
+        scalefactors_16um_path = os.path.join(
+            python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
+        )
+
+        if not os.path.exists(scalefactors_16um_path):
+            raise ValueError(
+                f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
+            )
         
         with open(scalefactors_16um_path, 'r') as f:
             scalefactors_16um = json.load(f)
@@ -2005,9 +2023,20 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         # Convert arrow width from full-resolution to 16µm lowres pixels
         arrow_width_16um_pixels = arrow_width_fullres_pixels * tissue_lowres_scalef_16um
         
-        # Find the 16um parquet file path
-        # Construct the expected path for 16um tissue positions
-        tgt_16um_parquet = os.path.join(python_dir, f"{base_sample_id}", "binned_outputs", "square_016um", "spatial", "tissue_positions.parquet")
+        # Find the 16um parquet file path in Example_Data root using the same sample token as scalefactors.
+        tgt_16um_parquet = scalefactors_16um_path.replace(
+            "_scalefactors_json.json", "_tissue_positions.parquet"
+        )
+
+        if not os.path.exists(tgt_16um_parquet):
+            return {
+                "status": "error",
+                "message": (
+                    f"Could not find 16um tissue_positions.parquet for {base_sample_id}. "
+                    f"Path: {tgt_16um_parquet}"
+                ),
+                "sample_id": sample_id,
+            }
         
         # Select barcodes within the ROI polygon
         bc16 = select_barcodes_in_polygon(tgt_16um_parquet, roi_fullres)
