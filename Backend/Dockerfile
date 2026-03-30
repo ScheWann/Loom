@@ -4,9 +4,9 @@ FROM python:3.11
 RUN apt-get update && apt-get install -y --no-install-recommends \
     r-base \
     r-base-dev \
-    libuv1-dev \ 
-    libharfbuzz-dev \ 
-    libfribidi-dev \ 
+    libuv1-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
     pandoc \
     libcurl4-openssl-dev \
     libssl-dev \
@@ -35,7 +35,7 @@ RUN R -e " install.packages('arrow', repos='https://cran.rstudio.com/'); \
     remotes::install_github('cvarrichio/Matrix.utils'); \
     install.packages(c('devtools'), repos='http://cran.rstudio.com/'); \
     install.packages(c('tidyverse'), repos='https://cran.rstudio.com/'); \
-    remotes::install_github('haleyjeppson/ggmosaic') \
+    remotes::install_github('haleyjeppson/ggmosaic'); \
     remotes::install_github('hrbrmstr/ggalt'); \
     remotes::install_github('kueckelj/confuns'); \
     devtools::install_github('theMILOlab/SPATAData'); \

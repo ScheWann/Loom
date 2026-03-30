@@ -4,7 +4,7 @@ services:
       context: ./Backend
     command: gunicorn --bind 0.0.0.0:5003 --workers 1 --threads 4 --timeout 300 server:app
     ports:
-      - "5003:5003"
+      - "127.0.0.1:5003:5003"
     volumes:
       - ./Example_Data:/app/Example_Data
     restart: unless-stopped
@@ -13,7 +13,7 @@ services:
     build:
       context: ./Frontend
     ports:
-      - "3003:80"
+      - "127.0.0.1:9696:80"
     depends_on:
       - backend
     restart: unless-stopped
