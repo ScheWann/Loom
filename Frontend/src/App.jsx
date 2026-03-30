@@ -427,7 +427,7 @@ function App() {
           {/* top bar */}
           <div className="topBar">
             <div className="appTitle">
-              <img src="/Loom_name.png" alt="Loom" className="appLogo" />
+              <img src={`${import.meta.env.BASE_URL}Loom_name.png`} alt="Loom" className="appLogo" />
             </div>
             {/* select samples */}
             <div className="selectSamples">
