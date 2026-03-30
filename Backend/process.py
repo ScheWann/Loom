@@ -607,7 +607,6 @@ def get_cell_types_data(sample_ids):
     return sample_cell_types
 
 
-# get kosara data
 def get_kosara_data(sample_ids, gene_list, cell_list=None):
     """
     Get Kosara data for the given sample IDs.
