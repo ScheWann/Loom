@@ -1,10 +1,10 @@
 # Loom  
 
 <div align="center">
-  <img src="Frontend/public/Loom_name.png" alt="Loom Logo" height="200"/><br/>
-  <a href="https://github.com/ScheWann/Loom_General">General Glyph Repo</a> • 
-  <text href="YOUR_WEBSITE">Website</text> • 
-  <text href="YOUR_PAPER_LINK">Paper</text>
+  <img src="Frontend/public/Loom_name.png" alt="Loom Logo" height="200"/><br/><br/>
+  [<a href="https://github.com/ScheWann/Loom_General">General Glyph Repo</a>] • 
+  [<text href="YOUR_WEBSITE">Website</text>] • 
+  [<text href="YOUR_PAPER_LINK">Paper</text>]
 </div>
 
 
