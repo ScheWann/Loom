@@ -1,6 +1,7 @@
 # Loom  
 
 <div align="center">
+  <br/>
   <img src="Frontend/public/Loom_name.png" alt="Loom Logo" height="200"/><br/><br/>
   [<a href="https://github.com/ScheWann/Loom_General">General Glyph Repo</a>] • 
   [<text href="YOUR_WEBSITE">Website</text>] • 
