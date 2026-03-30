@@ -4,7 +4,7 @@
   <br/>
   <img src="Frontend/public/Loom_name.png" alt="Loom Logo" height="200"/><br/><br/>
   [<a href="https://github.com/ScheWann/Loom_General">General Glyph Repo</a>] • 
-  [<text href="YOUR_WEBSITE">Website</text>] • 
+  [<a href="https://arcade.evl.uic.edu/loom/">Website</a>] • 
   [<text href="YOUR_PAPER_LINK">Paper</text>]
 </div>
 
