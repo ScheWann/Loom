@@ -55,6 +55,14 @@ export const COLOR_BREWER2_PALETTE = [
     "#b2df8a",
 ];
 
+export const COLOR_BREWER3_PALETTE_EXTRA = [
+    "#984ea3", 
+    "#377eb8", 
+    "#e41a1c", 
+    "#ff7f00",
+    "#4daf4a", 
+];
+
 // Debounce utility function
 export const debounce = (func, delay) => {
     let timeoutId;

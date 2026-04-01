@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox, Tooltip } from 'antd';
-import { COLOR_BREWER2_PALETTE } from "./Utils";
+import { COLOR_BREWER2_PALETTE, COLOR_BREWER3_PALETTE_EXTRA } from "./Utils";
 
 const COLORS = COLOR_BREWER2_PALETTE;
+const TRAJECTORY_COLORS = COLOR_BREWER3_PALETTE_EXTRA;
 
 export const PseudotimeGlyph = ({
     adata_umap_title,
@@ -437,7 +438,7 @@ export const PseudotimeGlyph = ({
             .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
 
         // Color scale for different trajectories
-        const trajectoryColors = COLORS;
+        const trajectoryColors = TRAJECTORY_COLORS;
 
         // Draw each trajectory
         const trajectories = trajectoryDataStructure.trajectory_objects || trajectoryDataStructure;
@@ -1123,7 +1124,7 @@ export const PseudotimeGlyph = ({
                 // Build legend items from pseudotime data
                 const legendItems = (() => {
                     if (!pseudotimeData || !pseudotimeData.trajectory_objects || !Array.isArray(pseudotimeData.trajectory_objects)) return [];
-                    const tc = COLORS;
+                    const tc = TRAJECTORY_COLORS;
                     return pseudotimeData.trajectory_objects.map((traj, i) => ({
                         index: i,
                         name: traj.name || `Trajectory ${i + 1}`,
@@ -1146,7 +1147,7 @@ export const PseudotimeGlyph = ({
                         if (!path.empty()) {
                             if (index === hoveredIndex) {
                                 // Highlight the hovered trajectory path
-                                path.attr('stroke', COLORS[index % COLORS.length])
+                                path.attr('stroke', TRAJECTORY_COLORS[index % TRAJECTORY_COLORS.length])
                                     .attr('stroke-width', 4)
                                     .attr('opacity', 1);
                                 
@@ -1154,7 +1155,7 @@ export const PseudotimeGlyph = ({
                                 nodes.each(function(d, i) {
                                     const node = d3.select(this);
                                     // Get the original color from cluster colors or use trajectory color
-                                    let originalColor = COLORS[index % COLORS.length];
+                                    let originalColor = TRAJECTORY_COLORS[index % TRAJECTORY_COLORS.length];
                                     if (clusterColors) {
                                         // Try to get cluster-specific color if available
                                         const clusterAttr = node.attr('data-cluster');
@@ -1187,14 +1188,14 @@ export const PseudotimeGlyph = ({
                         if (!path.empty()) {
                             if (index === selectedTrajectory) {
                                 // Restore selected trajectory path appearance
-                                path.attr('stroke', COLORS[index % COLORS.length])
+                                path.attr('stroke', TRAJECTORY_COLORS[index % TRAJECTORY_COLORS.length])
                                     .attr('stroke-width', 5)
                                     .attr('opacity', 1);
                                 
                                 // Restore selected trajectory nodes appearance with original colors
                                 nodes.each(function(d, i) {
                                     const node = d3.select(this);
-                                    let originalColor = COLORS[index % COLORS.length];
+                                    let originalColor = TRAJECTORY_COLORS[index % TRAJECTORY_COLORS.length];
                                     if (clusterColors) {
                                         const clusterAttr = node.attr('data-cluster');
                                         if (clusterAttr && clusterColors[clusterAttr]) {
