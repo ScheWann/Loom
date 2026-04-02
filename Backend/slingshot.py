@@ -155,7 +155,8 @@ def run_slingshot_by_rpy2(
             with tempfile.TemporaryDirectory() as temp_dir:
                 print("Creating temporary files...")
 
-                # Export to Parquet file with proper error handling
+                # Export to CSV files with proper error handling.
+                # CSV avoids pyarrow/arrow shared-library conflicts in long-lived sessions.
                 try:
                     if sparse.issparse(adata.X):
                         expr_df = pd.DataFrame(adata.X.toarray())
@@ -167,13 +168,13 @@ def run_slingshot_by_rpy2(
                     )
                     clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
 
-                    expr_file = os.path.join(temp_dir, "expr.parquet")
-                    umap_file = os.path.join(temp_dir, "umap.parquet")
-                    clusters_file = os.path.join(temp_dir, "clusters.parquet")
+                    expr_file = os.path.join(temp_dir, "expr.csv")
+                    umap_file = os.path.join(temp_dir, "umap.csv")
+                    clusters_file = os.path.join(temp_dir, "clusters.csv")
 
-                    expr_df.to_parquet(expr_file, index=False)
-                    umap_df.to_parquet(umap_file, index=False)
-                    clusters_df.to_parquet(clusters_file, index=False)
+                    expr_df.to_csv(expr_file, index=False)
+                    umap_df.to_csv(umap_file, index=False)
+                    clusters_df.to_csv(clusters_file, index=False)
                 except Exception as file_error:
                     print(f"Error creating temporary files: {file_error}")
                     return None
@@ -198,16 +199,10 @@ def run_slingshot_by_rpy2(
                     library(slingshot)
                     library(SingleCellExperiment)
                     
-                    # Load required library for parquet reading
-                    if (!requireNamespace(\"arrow\", quietly = TRUE)) {{
-                        install.packages(\"arrow\")
-                    }}
-                    library(arrow)
-                    
                     # Load data
-                    expr_matrix <- as.matrix(read_parquet(\"{expr_file}\"))
-                    umap_coords <- as.matrix(read_parquet(\"{umap_file}\"))
-                    clusters <- read_parquet(\"{clusters_file}\")$clusters
+                    expr_matrix <- as.matrix(read.csv(\"{expr_file}\", check.names = FALSE))
+                    umap_coords <- as.matrix(read.csv(\"{umap_file}\", check.names = FALSE))
+                    clusters <- read.csv(\"{clusters_file}\", check.names = FALSE)$clusters
                     
                     # Transpose gene expression matrix (gene x cell)
                     expr_matrix <- t(expr_matrix)
@@ -236,18 +231,18 @@ def run_slingshot_by_rpy2(
                     pseudotimes <- slingPseudotime(sce)
                     lineages <- slingLineages(sce)
 
-                    # Convert matrix to data frame for parquet writing
+                    # Convert matrix to data frame for CSV writing
                     pseudotimes_df <- as.data.frame(pseudotimes)
                     # Add row names as a column to preserve cell identifiers
                     pseudotimes_df <- cbind(CellID = rownames(pseudotimes_df), pseudotimes_df)
-                    write_parquet(pseudotimes_df, "{temp_dir}/pseudotimes.parquet")
+                    write.csv(pseudotimes_df, "{temp_dir}/pseudotimes.csv", row.names = FALSE)
 
                     # lineage list
                     lineages_df <- data.frame(
                         Lineage = rep(names(lineages), lengths(lineages)),
                         Cluster = unlist(lineages)
                     )
-                    write_parquet(lineages_df, "{temp_dir}/lineages.parquet")
+                    write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names = FALSE)
                     
                     # Return number of trajectories
                     n_lineages <- ncol(pseudotimes)
@@ -267,19 +262,19 @@ def run_slingshot_by_rpy2(
 
                 print("Reading results...")
 
-                pseudotimes_file = os.path.join(temp_dir, "pseudotimes.parquet")
-                lineages_file = os.path.join(temp_dir, "lineages.parquet")
+                pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
+                lineages_file = os.path.join(temp_dir, "lineages.csv")
 
                 if os.path.exists(pseudotimes_file):
                     try:
-                        pseudotimes_df = pd.read_parquet(pseudotimes_file)
+                        pseudotimes_df = pd.read_csv(pseudotimes_file)
                         # Set the CellID column as index for pseudotimes to match original CSV behavior
                         if 'CellID' in pseudotimes_df.columns:
                             pseudotimes_df = pseudotimes_df.set_index('CellID')
                         elif len(pseudotimes_df.columns) > 0 and pseudotimes_df.columns[0] not in ['X1', 'Lineage1']:
                             pseudotimes_df = pseudotimes_df.set_index(pseudotimes_df.columns[0])
                         
-                        lineages_df = pd.read_parquet(lineages_file)
+                        lineages_df = pd.read_csv(lineages_file)
                         # Set first column as index for lineages to match original CSV behavior  
                         if len(lineages_df.columns) > 0 and 'Lineage' in lineages_df.columns:
                             lineages_df = lineages_df.set_index(lineages_df.columns[0])
@@ -345,7 +340,7 @@ def run_slingshot_by_subprocess(
         with tempfile.TemporaryDirectory() as temp_dir:
             print("Creating temporary files for subprocess R call...")
 
-            # Export to CSV file
+            # Export input data as CSV to avoid Arrow/Parquet runtime conflicts.
             if sparse.issparse(adata.X):
                 expr_df = pd.DataFrame(adata.X.toarray())
             else:
@@ -356,13 +351,13 @@ def run_slingshot_by_subprocess(
             )
             clusters_df = pd.DataFrame({"clusters": adata.obs[cluster_key].astype(str)})
 
-            expr_file = os.path.join(temp_dir, "expr.parquet")
-            umap_file = os.path.join(temp_dir, "umap.parquet")
-            clusters_file = os.path.join(temp_dir, "clusters.parquet")
+            expr_file = os.path.join(temp_dir, "expr.csv")
+            umap_file = os.path.join(temp_dir, "umap.csv")
+            clusters_file = os.path.join(temp_dir, "clusters.csv")
 
-            expr_df.to_parquet(expr_file, index=False)
-            umap_df.to_parquet(umap_file, index=False)
-            clusters_df.to_parquet(clusters_file, index=False)
+            expr_df.to_csv(expr_file, index=False)
+            umap_df.to_csv(umap_file, index=False)
+            clusters_df.to_csv(clusters_file, index=False)
 
             # Create R script
             r_script = f"""
@@ -380,16 +375,10 @@ def run_slingshot_by_subprocess(
                 library(slingshot)
                 library(SingleCellExperiment)
 
-                # Load required library for parquet reading
-                if (!requireNamespace("arrow", quietly = TRUE)) {{
-                    install.packages("arrow")
-                }}
-                library(arrow)
-
                 # Load data
-                expr_matrix <- as.matrix(read_parquet("{expr_file}"))
-                umap_coords <- as.matrix(read_parquet("{umap_file}"))
-                clusters <- read_parquet("{clusters_file}")$clusters
+                expr_matrix <- as.matrix(read.csv("{expr_file}", check.names = FALSE))
+                umap_coords <- as.matrix(read.csv("{umap_file}", check.names = FALSE))
+                clusters <- read.csv("{clusters_file}", check.names = FALSE)$clusters
 
                 # Transpose gene expression matrix (gene x cell)
                 expr_matrix <- t(expr_matrix)
@@ -420,48 +409,43 @@ def run_slingshot_by_subprocess(
                     lineages <- slingLineages(sce)
 
                     # Save results
-                    # Convert matrix to data frame for parquet writing
                     pseudotimes_df <- as.data.frame(pseudotimes)
-                    # Add row names as a column to preserve cell identifiers
                     pseudotimes_df <- cbind(CellID = rownames(pseudotimes_df), pseudotimes_df)
-                    write_parquet(pseudotimes_df, "{temp_dir}/pseudotimes.parquet")
+                    write.csv(pseudotimes_df, "{temp_dir}/pseudotimes.csv", row.names = FALSE)
 
-                    # lineage list
                     lineages_df <- data.frame(
                         Lineage = rep(names(lineages), lengths(lineages)),
                         Cluster = unlist(lineages)
                     )
-                    write_parquet(lineages_df, "{temp_dir}/lineages.parquet")
+                    write.csv(lineages_df, "{temp_dir}/lineages.csv", row.names = FALSE)
 
-                    # Print number of trajectories
                     n_lineages <- ncol(pseudotimes)
                     cat("Found", n_lineages, "trajectories\\n")
                 '''
 
             # Write R script to file
             r_script_file = os.path.join(temp_dir, "slingshot_script.R")
-            with open(r_script_file, 'w') as f:
+            with open(r_script_file, "w") as f:
                 f.write(r_script)
 
             print("Executing R script via subprocess...")
-            
-            # Run R script
+
             try:
                 result = subprocess.run(
-                    ['Rscript', r_script_file],
+                    ["Rscript", r_script_file],
                     capture_output=True,
                     text=True,
-                    timeout=300  # 5 minute timeout
+                    timeout=300,
                 )
-                
+
                 if result.returncode != 0:
                     print(f"R script failed with return code {result.returncode}")
                     print(f"STDOUT: {result.stdout}")
                     print(f"STDERR: {result.stderr}")
                     return None
-                    
+
                 print(f"R script output: {result.stdout}")
-                
+
             except subprocess.TimeoutExpired:
                 print("R script timed out after 5 minutes")
                 return None
@@ -470,29 +454,21 @@ def run_slingshot_by_subprocess(
                 return None
 
             # Read results
-            pseudotimes_file = os.path.join(temp_dir, "pseudotimes.parquet")
-            lineages_file = os.path.join(temp_dir, "lineages.parquet")
+            pseudotimes_file = os.path.join(temp_dir, "pseudotimes.csv")
+            lineages_file = os.path.join(temp_dir, "lineages.csv")
 
             if os.path.exists(pseudotimes_file):
                 try:
-                    pseudotimes_df = pd.read_parquet(pseudotimes_file)
-                    # Set the CellID column as index for pseudotimes to match original CSV behavior
-                    if 'CellID' in pseudotimes_df.columns:
-                        pseudotimes_df = pseudotimes_df.set_index('CellID')
-                    elif len(pseudotimes_df.columns) > 0 and pseudotimes_df.columns[0] not in ['X1', 'Lineage1']:
-                        pseudotimes_df = pseudotimes_df.set_index(pseudotimes_df.columns[0])
-                    
-                    lineages_df = pd.read_parquet(lineages_file)
-                    # Set first column as index for lineages to match original CSV behavior  
-                    if len(lineages_df.columns) > 0 and 'Lineage' in lineages_df.columns:
-                        lineages_df = lineages_df.set_index(lineages_df.columns[0])
+                    pseudotimes_df = pd.read_csv(pseudotimes_file)
+                    if "CellID" in pseudotimes_df.columns:
+                        pseudotimes_df = pseudotimes_df.set_index("CellID")
 
-                    # Check if results are empty
+                    lineages_df = pd.read_csv(lineages_file)
+
                     if pseudotimes_df.empty or lineages_df.empty:
                         print("R analysis failed - empty results returned")
                         return None
 
-                    # Add to adata
                     for i, col in enumerate(pseudotimes_df.columns):
                         adata.uns[f"slingshot_pseudotime_{embedding_key}_{col}"] = pseudotimes_df.iloc[:, i].values
 
