@@ -1487,30 +1487,78 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         trajectory_results = PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results'][cache_key_used]
         print(f"Using cached trajectory results for pseudotime values with key: {cache_key_used}")
     
+    cluster_pseudotime_map = None
     if trajectory_results and isinstance(trajectory_results, list) and len(trajectory_results) > 0:
-        # Use the first trajectory result (you might want to make this configurable)
-        trajectory_result = trajectory_results[0]
-        
-        # Extract cluster path and pseudotime values
-        if 'path' in trajectory_result and 'pseudotime' in trajectory_result:
-            cluster_path = trajectory_result['path']
-            pseudotime_values = trajectory_result['pseudotime']
-        elif 'correction_info' in trajectory_result:
-            # Use corrected pseudotime if available
-            cluster_path = trajectory_result['correction_info']['trajectory_path']
-            pseudotime_values = trajectory_result['correction_info']['corrected_pseudotime']
-        else:
-            print("Warning: No valid trajectory path or pseudotime data found in cached results")
-            trajectory_results = None
-        
-        if trajectory_results:
-            # Create a mapping from cluster to pseudotime
+        requested_path = [str(cluster) for cluster in trajectory_path] if trajectory_path else []
+
+        def _extract_path_and_pseudotime(trajectory_result):
+            if not isinstance(trajectory_result, dict):
+                return None, None
+
+            if 'path' in trajectory_result and 'pseudotime' in trajectory_result:
+                cluster_path = trajectory_result['path']
+                pseudotime_values = trajectory_result['pseudotime']
+                return [str(cluster) for cluster in cluster_path], pseudotime_values
+
+            if 'correction_info' in trajectory_result and isinstance(trajectory_result['correction_info'], dict):
+                correction_info = trajectory_result['correction_info']
+                if 'trajectory_path' in correction_info and 'corrected_pseudotime' in correction_info:
+                    cluster_path = correction_info['trajectory_path']
+                    pseudotime_values = correction_info['corrected_pseudotime']
+                    return [str(cluster) for cluster in cluster_path], pseudotime_values
+
+            return None, None
+
+        matched_path = None
+        matched_pseudotime = None
+
+        # First pass: exact match with the requested trajectory path
+        for trajectory_result in trajectory_results:
+            cluster_path, pseudotime_values = _extract_path_and_pseudotime(trajectory_result)
+            if cluster_path and pseudotime_values and len(cluster_path) == len(pseudotime_values):
+                if cluster_path == requested_path:
+                    matched_path = cluster_path
+                    matched_pseudotime = pseudotime_values
+                    print(f"Matched requested trajectory path exactly: {requested_path}")
+                    break
+
+        # Second pass fallback: pick the most similar trajectory if exact match is unavailable
+        if matched_path is None:
+            best_score = None
+            best_candidate = None
+
+            for trajectory_result in trajectory_results:
+                cluster_path, pseudotime_values = _extract_path_and_pseudotime(trajectory_result)
+                if not cluster_path or not pseudotime_values or len(cluster_path) != len(pseudotime_values):
+                    continue
+
+                if requested_path:
+                    ordered_overlap = sum(1 for a, b in zip(cluster_path, requested_path) if a == b)
+                    set_overlap = len(set(cluster_path).intersection(set(requested_path)))
+                    score = (ordered_overlap * 10) + set_overlap - abs(len(cluster_path) - len(requested_path))
+                else:
+                    score = 0
+
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best_candidate = (cluster_path, pseudotime_values)
+
+            if best_candidate is not None:
+                matched_path, matched_pseudotime = best_candidate
+                print(
+                    f"Warning: Exact trajectory path match not found. "
+                    f"Using best candidate path: {matched_path}, requested: {requested_path}"
+                )
+
+        if matched_path is not None and matched_pseudotime is not None:
             cluster_pseudotime_map = {}
-            for cluster, pseudotime in zip(cluster_path, pseudotime_values):
+            for cluster, pseudotime in zip(matched_path, matched_pseudotime):
                 cluster_pseudotime_map[str(cluster)] = pseudotime
+        else:
+            print("Warning: No valid trajectory path/pseudotime pair found in cached results")
     
     # Fallback: Try to find pseudotime data in the AnnData object
-    if not trajectory_results:
+    if cluster_pseudotime_map is None:
         available_pseudotime_cols = [col for col in adata.uns.keys() if col.startswith("slingshot_pseudotime")]
         
         if available_pseudotime_cols:
