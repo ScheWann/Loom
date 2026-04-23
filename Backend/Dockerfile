@@ -52,4 +52,4 @@ COPY . .
 
 EXPOSE 5003
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5003", "--workers", "1", "--threads", "4", "--timeout", "300", "server:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5003", "--workers", "1", "--threads", "4", "--timeout", "600", "server:app"]
