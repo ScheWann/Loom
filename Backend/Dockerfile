@@ -51,7 +51,14 @@ RUN R -e "remotes::install_github('hrbrmstr/ggalt')"
 RUN R -e "remotes::install_github('kueckelj/confuns')"
 RUN R -e "devtools::install_github('theMILOlab/SPATAData')"
 RUN R -e "options(timeout=400); devtools::install_github('theMILOlab/SPATA2')"
-RUN R -e "devtools::install_github('xzhoulab/SPARK')"
+
+RUN mkdir -p /root/.R && \
+    echo "CXX14 = g++ -std=gnu++14" >> /root/.R/Makevars && \
+    echo "CXX14STD = -std=gnu++14" >> /root/.R/Makevars && \
+    echo "CXX11 = g++ -std=gnu++14" >> /root/.R/Makevars && \
+    echo "CXX11STD = -std=gnu++14" >> /root/.R/Makevars
+
+RUN R -e "remotes::install_github('xzhoulab/SPARK')"
 
 WORKDIR /app/Backend
 
