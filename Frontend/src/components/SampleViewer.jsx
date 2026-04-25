@@ -1716,7 +1716,7 @@ export const SampleViewer = ({
     }, [trajectoryStart, trajectoryEnd, calculateArrowCoverageArea]);
 
     // Handle trajectory analysis
-    const handleAnalyzeTrajectory = useCallback(() => {
+    const handleAnalyzeTrajectory = useCallback(async () => {
         if (!trajectoryStart || !trajectoryEnd || !selectedAreaForEdit || !trajectoryName.trim()) {
             console.error('Missing trajectory data for analysis');
             return;
@@ -1750,95 +1750,124 @@ export const SampleViewer = ({
             trajectoryName: trajectoryName.trim()
         };
 
-        fetch('/api/analyze_trajectory', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(trajectoryData)
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+        const waitForTrajectoryJob = async (taskId) => {
+            const pollIntervalMs = 3000;
+            const maxWaitMs = 60 * 60 * 1000;
+            const deadline = Date.now() + maxWaitMs;
+
+            while (Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+
+                const statusResponse = await fetch(`/api/analyze_trajectory/status/${taskId}`);
+                if (!statusResponse.ok) {
+                    throw new Error(`Status check failed with HTTP ${statusResponse.status}`);
                 }
-                return response.text(); // Get as text first to handle potential JSON errors
-            })
-            .then(text => {
-                try {
-                    const result = JSON.parse(text);
-                    if (result.status === 'success') {
-                        const newTrajectory = {
-                            id: `trajectory_${Date.now()}`,
-                            name: trajectoryName.trim(),
-                            start: trajectoryStart,
-                            end: trajectoryEnd,
-                            width: arrowWidth,
-                            analysisResult: result,
-                            // Store region and trajectory identifiers for chart correlation
-                            region_id: selectedAreaForEdit.name, // Area name serves as region_id
-                            trajectory_id: trajectoryName.trim(), // Trajectory name serves as trajectory_id
-                            sample_id: selectedAreaForEdit.sampleId // Store sample_id for reference
-                        };
 
-                        // Update the area with the new trajectory using functional update to preserve any areas added during analysis
-                        setCustomAreas(prevAreas => {
-                            const updatedAreas = prevAreas.map(area => {
-                                if (area.id === selectedAreaForEdit.id) {
-                                    const trajectories = area.trajectories || [];
-                                    return {
-                                        ...area,
-                                        trajectories: [...trajectories, newTrajectory]
-                                    };
-                                }
-                                return area;
-                            });
-                            
-                            // Update selected area for edit if it's still open
-                            if (selectedAreaForEdit && selectedAreaForEdit.id === selectedAreaForEdit.id) {
-                                const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
-                                setSelectedAreaForEdit(updatedSelectedArea);
-                            }
-                            
-                            return updatedAreas;
-                        });
-
-                        // Exit trajectory mode and reset only after successful analysis
-                        setIsTrajectoryMode(false);
-                        setTrajectoryStart(null);
-                        setTrajectoryEnd(null);
-                        setTrajectoryName('');
-                        setArrowCoverageArea(null);
-
-                        message.success('Trajectory analysis completed successfully');
-
-                        // Notify parent that trajectory analysis is complete
-                        if (onTrajectoryAnalysisComplete) {
-                            // Get the sample ID and region name from the trajectory data
-                            const sampleId = trajectoryData.sampleId;
-                            const regionName = trajectoryData.areaName;
-                            onTrajectoryAnalysisComplete(sampleId, regionName);
-                        }
-                    } else {
-                        console.error('Analysis failed:', result.message);
-                        alert(`Analysis failed: ${result.message || 'Unknown error'}`);
-                    }
-                } catch (jsonError) {
-                    console.error('Invalid JSON response:', text);
-                    console.error('JSON Parse Error:', jsonError);
-                    alert(`Server returned invalid response. Please check the backend logs.`);
+                const statusResult = await statusResponse.json();
+                if (statusResult.status === 'success') {
+                    return;
                 }
-            })
-            .catch(error => {
-                console.error('Error analyzing trajectory:', error);
-                alert(`Error analyzing trajectory: ${error.message}`);
-            })
-            .finally(() => {
-                // Clear loading state and remove from analyzing trajectories
-                setIsTrajectoryAnalyzing(false);
-                setAnalyzingTrajectories(prev => prev.filter(t =>
-                    !(t.areaId === selectedAreaForEdit.id &&
-                        t.start === trajectoryStart &&
-                        t.end === trajectoryEnd)
-                ));
+                if (statusResult.status === 'error') {
+                    throw new Error(statusResult.message || 'Trajectory analysis failed');
+                }
+            }
+
+            throw new Error('Trajectory analysis timed out while waiting for the background job');
+        };
+
+        try {
+            const submitResponse = await fetch('/api/analyze_trajectory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(trajectoryData)
             });
+
+            if (!submitResponse.ok) {
+                throw new Error(`HTTP error! status: ${submitResponse.status}`);
+            }
+
+            const submitResult = await submitResponse.json();
+            let result = submitResult;
+
+            if (submitResult.task_id) {
+                message.info('Trajectory analysis started. This may take several minutes.');
+                await waitForTrajectoryJob(submitResult.task_id);
+
+                const resultResponse = await fetch(`/api/analyze_trajectory/result/${submitResult.task_id}`);
+                if (!resultResponse.ok) {
+                    throw new Error(`Result fetch failed with HTTP ${resultResponse.status}`);
+                }
+                result = await resultResponse.json();
+            }
+
+            if (result.status === 'success') {
+                const newTrajectory = {
+                    id: `trajectory_${Date.now()}`,
+                    name: trajectoryName.trim(),
+                    start: trajectoryStart,
+                    end: trajectoryEnd,
+                    width: arrowWidth,
+                    analysisResult: result,
+                    // Store region and trajectory identifiers for chart correlation
+                    region_id: selectedAreaForEdit.name, // Area name serves as region_id
+                    trajectory_id: trajectoryName.trim(), // Trajectory name serves as trajectory_id
+                    sample_id: selectedAreaForEdit.sampleId // Store sample_id for reference
+                };
+
+                // Update the area with the new trajectory using functional update to preserve any areas added during analysis
+                setCustomAreas(prevAreas => {
+                    const updatedAreas = prevAreas.map(area => {
+                        if (area.id === selectedAreaForEdit.id) {
+                            const trajectories = area.trajectories || [];
+                            return {
+                                ...area,
+                                trajectories: [...trajectories, newTrajectory]
+                            };
+                        }
+                        return area;
+                    });
+
+                    // Update selected area for edit if it's still open
+                    if (selectedAreaForEdit && selectedAreaForEdit.id === selectedAreaForEdit.id) {
+                        const updatedSelectedArea = updatedAreas.find(area => area.id === selectedAreaForEdit.id);
+                        setSelectedAreaForEdit(updatedSelectedArea);
+                    }
+
+                    return updatedAreas;
+                });
+
+                // Exit trajectory mode and reset only after successful analysis
+                setIsTrajectoryMode(false);
+                setTrajectoryStart(null);
+                setTrajectoryEnd(null);
+                setTrajectoryName('');
+                setArrowCoverageArea(null);
+
+                message.success('Trajectory analysis completed successfully');
+
+                // Notify parent that trajectory analysis is complete
+                if (onTrajectoryAnalysisComplete) {
+                    // Get the sample ID and region name from the trajectory data
+                    const sampleId = trajectoryData.sampleId;
+                    const regionName = trajectoryData.areaName;
+                    onTrajectoryAnalysisComplete(sampleId, regionName);
+                }
+            } else {
+                console.error('Analysis failed:', result.message);
+                alert(`Analysis failed: ${result.message || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error analyzing trajectory:', error);
+            alert(`Error analyzing trajectory: ${error.message}`);
+        } finally {
+            // Clear loading state and remove from analyzing trajectories
+            setIsTrajectoryAnalyzing(false);
+            setAnalyzingTrajectories(prev => prev.filter(t =>
+                !(t.areaId === selectedAreaForEdit.id &&
+                    t.start === trajectoryStart &&
+                    t.end === trajectoryEnd)
+            ));
+        }
     }, [trajectoryStart, trajectoryEnd, arrowWidth, selectedAreaForEdit, trajectoryName, onTrajectoryAnalysisComplete, sampleOffsets]);
 
     // Memoize getSampleAtCoordinate to prevent infinite effect loops

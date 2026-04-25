@@ -15,6 +15,10 @@ from process import SAMPLES
 from flask_cors import CORS
 import re
 import os
+import threading
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from process import (
     get_samples_option,
     get_hires_image_size,
@@ -45,6 +49,10 @@ from process import (
 
 app = Flask(__name__)
 CORS(app)
+
+trajectory_executor = ThreadPoolExecutor(max_workers=1)
+trajectory_jobs = {}
+trajectory_jobs_lock = threading.Lock()
 
 # UPLOAD_FOLDER = "../Uploaded_Data"
 # os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -462,8 +470,8 @@ def get_direct_slingshot_data_route():
 @app.route("/api/analyze_trajectory", methods=["POST"])
 def analyze_trajectory_route():
     """
-    Analyze trajectory using multi-scale matching method.
-    Maps coordinates from processed image to full-resolution and finds 16um barcodes.
+    Queue trajectory analysis as a background job.
+    This keeps the HTTP request short so upstream proxies do not time out.
     """
     data = request.json
     sample_id = data.get("sampleId")
@@ -483,23 +491,118 @@ def analyze_trajectory_route():
     
     if arrow_width_pixels is None:
         arrow_width_pixels = 10  # Default width
-    
+
+    task_id = str(uuid.uuid4())
+    job_payload = {
+        "sample_id": sample_id,
+        "start_coordinates": start_coordinates,
+        "end_coordinates": end_coordinates,
+        "arrow_width_pixels": arrow_width_pixels,
+        "drawing_points": drawing_points,
+        "trajectory_name": trajectory_name,
+        "area_name": area_name
+    }
+
+    with trajectory_jobs_lock:
+        trajectory_jobs[task_id] = {
+            "status": "queued",
+            "result": None,
+            "message": None,
+            "created_at": time.time(),
+            "updated_at": time.time()
+        }
+
+    trajectory_executor.submit(_run_trajectory_analysis_job, task_id, job_payload)
+
+    return jsonify({
+        "status": "queued",
+        "task_id": task_id
+    }), 202
+
+
+def _run_trajectory_analysis_job(task_id, job_payload):
+    with trajectory_jobs_lock:
+        if task_id in trajectory_jobs:
+            trajectory_jobs[task_id]["status"] = "running"
+            trajectory_jobs[task_id]["updated_at"] = time.time()
+
     try:
         result = analyze_trajectory(
-            sample_id=sample_id,
-            start_coordinates=start_coordinates,
-            end_coordinates=end_coordinates,
-            arrow_width_pixels=arrow_width_pixels,
-            drawing_points=drawing_points,
-            trajectory_name=trajectory_name,
-            area_name=area_name  # Pass the area name to the analysis function
+            sample_id=job_payload["sample_id"],
+            start_coordinates=job_payload["start_coordinates"],
+            end_coordinates=job_payload["end_coordinates"],
+            arrow_width_pixels=job_payload["arrow_width_pixels"],
+            drawing_points=job_payload["drawing_points"],
+            trajectory_name=job_payload["trajectory_name"],
+            area_name=job_payload["area_name"]
         )
-        return jsonify(result)
+
+        with trajectory_jobs_lock:
+            if task_id in trajectory_jobs:
+                if result is None:
+                    result = {
+                        "status": "error",
+                        "message": "Trajectory analysis failed"
+                    }
+                trajectory_jobs[task_id]["status"] = "success" if result.get("status") == "success" else "error"
+                trajectory_jobs[task_id]["result"] = result
+                trajectory_jobs[task_id]["message"] = result.get("message")
+                trajectory_jobs[task_id]["updated_at"] = time.time()
     except Exception as e:
+        with trajectory_jobs_lock:
+            if task_id in trajectory_jobs:
+                trajectory_jobs[task_id]["status"] = "error"
+                trajectory_jobs[task_id]["result"] = None
+                trajectory_jobs[task_id]["message"] = f"Error analyzing trajectory: {str(e)}"
+                trajectory_jobs[task_id]["updated_at"] = time.time()
+
+
+@app.route("/api/analyze_trajectory/status/<task_id>", methods=["GET"])
+def analyze_trajectory_status_route(task_id):
+    with trajectory_jobs_lock:
+        job = trajectory_jobs.get(task_id)
+
+    if job is None:
         return jsonify({
             "status": "error",
-            "message": f"Error analyzing trajectory: {str(e)}"
-        }), 500
+            "message": "Trajectory analysis task not found"
+        }), 404
+
+    response = {
+        "task_id": task_id,
+        "status": job["status"],
+        "message": job["message"],
+        "created_at": job["created_at"],
+        "updated_at": job["updated_at"]
+    }
+    return jsonify(response)
+
+
+@app.route("/api/analyze_trajectory/result/<task_id>", methods=["GET"])
+def analyze_trajectory_result_route(task_id):
+    with trajectory_jobs_lock:
+        job = trajectory_jobs.get(task_id)
+
+    if job is None:
+        return jsonify({
+            "status": "error",
+            "message": "Trajectory analysis task not found"
+        }), 404
+
+    if job["status"] in ("queued", "running"):
+        return jsonify({
+            "task_id": task_id,
+            "status": job["status"],
+            "message": "Trajectory analysis is still running"
+        }), 202
+
+    if job["result"] is not None:
+        return jsonify(job["result"])
+
+    return jsonify({
+        "status": "error",
+        "message": job["message"] or "Trajectory analysis failed"
+    }), 500
 
 
 @app.route("/api/get_trajectory_gene_expression", methods=["POST"])
