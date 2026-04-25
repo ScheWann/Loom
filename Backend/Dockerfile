@@ -26,22 +26,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgit2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install R packages from CRAN, Bioconductor, and GitHub
-RUN R -e " install.packages('arrow', repos='https://cran.rstudio.com/'); \
-    install.packages('remotes', repos='https://cran.rstudio.com/'); \
-    install.packages(c('BiocManager'), repos='http://cran.rstudio.com/'); \
-    BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats', 'limma', 'S4Vectors', 'SingleCellExperiment', 'SummarizedExperiment', 'batchelor', 'slingshot', 'EBImage')); \
-    install.packages('https://cran.r-project.org/src/contrib/Archive/grr/grr_0.9.5.tar.gz', repos=NULL, type='source'); \
-    remotes::install_github('cvarrichio/Matrix.utils'); \
-    install.packages(c('devtools'), repos='http://cran.rstudio.com/'); \
-    install.packages(c('tidyverse'), repos='https://cran.rstudio.com/'); \
-    remotes::install_github('haleyjeppson/ggmosaic'); \
-    remotes::install_github('hrbrmstr/ggalt'); \
-    remotes::install_github('kueckelj/confuns'); \
-    devtools::install_github('theMILOlab/SPATAData'); \
-    options(timeout=400); \
-    devtools::install_github('theMILOlab/SPATA2'); \
-    devtools::install_github('xzhoulab/SPARK')"
+# Install basic R package managers
+RUN R -e "install.packages('remotes', repos='https://cran.rstudio.com/')"
+RUN R -e "install.packages('devtools', repos='https://cran.rstudio.com/')"
+RUN R -e "install.packages('BiocManager', repos='https://cran.rstudio.com/')"
+
+# CRAN packages
+RUN R -e "install.packages('arrow', repos='https://cran.rstudio.com/')"
+RUN R -e "install.packages('tidyverse', repos='https://cran.rstudio.com/')"
+
+# Bioconductor packages
+RUN R -e "BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats'), ask=FALSE, update=FALSE)"
+RUN R -e "BiocManager::install(c('limma', 'S4Vectors'), ask=FALSE, update=FALSE)"
+RUN R -e "BiocManager::install(c('SingleCellExperiment', 'SummarizedExperiment'), ask=FALSE, update=FALSE)"
+RUN R -e "BiocManager::install(c('batchelor', 'slingshot', 'EBImage'), ask=FALSE, update=FALSE)"
+
+# Archived CRAN package
+RUN R -e "install.packages('https://cran.r-project.org/src/contrib/Archive/grr/grr_0.9.5.tar.gz', repos=NULL, type='source')"
+
+# GitHub packages
+RUN R -e "remotes::install_github('cvarrichio/Matrix.utils')"
+RUN R -e "remotes::install_github('haleyjeppson/ggmosaic')"
+RUN R -e "remotes::install_github('hrbrmstr/ggalt')"
+RUN R -e "remotes::install_github('kueckelj/confuns')"
+RUN R -e "devtools::install_github('theMILOlab/SPATAData')"
+RUN R -e "options(timeout=400); devtools::install_github('theMILOlab/SPATA2')"
+RUN R -e "devtools::install_github('xzhoulab/SPARK')"
 
 WORKDIR /app/Backend
 
