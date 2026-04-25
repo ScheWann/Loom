@@ -24,7 +24,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtiff5-dev \
     libfreetype6-dev \
     libgit2-dev \
+    cmake \
+    libv8-dev \
+    libnode-dev \
+    libmagick++-dev \
+    libabsl-dev \
+    libglpk-dev \
+    pkg-config \
+    make \
+    g++ \
+    gcc \
+    git \
+    wget \
+    curl \
+    libbz2-dev \
+    liblzma-dev \
+    zlib1g-dev \
+    libpcre2-dev \
+    libreadline-dev \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /root/.R && \
+    echo "CXX14 = g++ -std=gnu++14" >> /root/.R/Makevars && \
+    echo "CXX14STD = -std=gnu++14" >> /root/.R/Makevars && \
+    echo "CXX11 = g++ -std=gnu++14" >> /root/.R/Makevars && \
+    echo "CXX11STD = -std=gnu++14" >> /root/.R/Makevars
 
 # Install basic R package managers
 RUN R -e "install.packages('remotes', repos='https://cran.rstudio.com/')"
@@ -50,14 +74,11 @@ RUN R -e "remotes::install_github('haleyjeppson/ggmosaic')"
 RUN R -e "remotes::install_github('hrbrmstr/ggalt')"
 RUN R -e "remotes::install_github('kueckelj/confuns')"
 RUN R -e "devtools::install_github('theMILOlab/SPATAData')"
+
+RUN R -e "install.packages(c('nloptr','s2','V8','magick','sf'), repos='https://cran.rstudio.com/')"
+RUN R -e "install.packages(c('lme4','pbkrtest','car','rstatix','ggpubr','concaveman'), repos='https://cran.rstudio.com/')"
+
 RUN R -e "options(timeout=400); devtools::install_github('theMILOlab/SPATA2')"
-
-RUN mkdir -p /root/.R && \
-    echo "CXX14 = g++ -std=gnu++14" >> /root/.R/Makevars && \
-    echo "CXX14STD = -std=gnu++14" >> /root/.R/Makevars && \
-    echo "CXX11 = g++ -std=gnu++14" >> /root/.R/Makevars && \
-    echo "CXX11STD = -std=gnu++14" >> /root/.R/Makevars
-
 RUN R -e "remotes::install_github('xzhoulab/SPARK')"
 
 WORKDIR /app/Backend
