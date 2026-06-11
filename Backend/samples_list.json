@@ -2,6 +2,9 @@
     "skin_TXK6Z4X_A1": {
         "id": "skin_TXK6Z4X_A1",
         "name": "skin_TXK6Z4X_A1",
+        "rds_path": "../Example_Data/skin_TXK6Z4X_A1_16um_object_processed.rds",
+        "scalefactors_16um_path": "../Example_Data/H1-TXK6Z4X-A1_scalefactors_json.json",
+        "tissue_positions_16um_path": "../Example_Data/H1-TXK6Z4X-A1_tissue_positions.parquet",
         "scales": {
             "2um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-A1_2um/skin_TXK6Z4X_A1_2um_b2c_qc.h5ad",
@@ -23,6 +26,9 @@
     "skin_TXK6Z4X_D1": {
         "id": "skin_TXK6Z4X_D1",
         "name": "skin_TXK6Z4X_D1",
+        "rds_path": "../Example_Data/skin_TXK6Z4X_D1_16um_object_processed.rds",
+        "scalefactors_16um_path": "../Example_Data/H1-TXK6Z4X-D1_scalefactors_json.json",
+        "tissue_positions_16um_path": "../Example_Data/H1-TXK6Z4X-D1_tissue_positions.parquet",
         "scales": {
             "2um": {
                 "adata_path": "../Example_Data/H1-TXK6Z4X-D1_2um/skin_TXK6Z4X_D1_2um_b2c_qc.h5ad",
@@ -38,6 +44,30 @@
                 "adata_path": "../Example_Data/H1-TXK6Z4X-D1_16um/skin_TXK6Z4X_D1_16um_b2c_qc.h5ad",
                 "image_tif_path": "../Example_Data/H1-TXK6Z4X-D1_16um/stardist/he.tiff",
                 "image_jpeg_path": "../Example_Data/H1-TXK6Z4X-D1_16um/H1-TXK6Z4X-D1_16um_lite.jpeg"
+            }
+        }
+    },
+    "Visium_HD_Mouse_Brain": {
+        "id": "Mouse_Brain",
+        "name": "Mouse_Brain",
+        "rds_path": "../Example_Data/mouse_brain_16um_object_processed.rds",
+        "scalefactors_16um_path": "../Example_Data/mouse_brain_scalefactors_json.json",
+        "tissue_positions_16um_path": "../Example_Data/mouse_brain_tissue_positions.parquet",
+        "scales": {
+            "2um": {
+                "adata_path": "../Example_Data/Mouse_Brain_2um/mouse_brain_2um_b2c_qc.h5ad",
+                "image_tif_path": "../Example_Data/Mouse_Brain_2um/stardist/he.tiff",
+                "image_jpeg_path": "../Example_Data/Mouse_Brain_2um/Mouse_Brain_2um_lite.jpeg"
+            },
+            "8um": {
+                "adata_path": "../Example_Data/Mouse_Brain_8um/mouse_brain_8um_b2c_qc.h5ad",
+                "image_tif_path": "../Example_Data/Mouse_Brain_8um/stardist/he.tiff",
+                "image_jpeg_path": "../Example_Data/Mouse_Brain_8um/Mouse_Brain_8um_lite.jpeg"
+            },
+            "16um": {
+                "adata_path": "../Example_Data/Mouse_Brain_16um/mouse_brain_16um_b2c_qc.h5ad",
+                "image_tif_path": "../Example_Data/Mouse_Brain_16um/stardist/he.tiff",
+                "image_jpeg_path": "../Example_Data/Mouse_Brain_16um/Mouse_Brain_16um_lite.jpeg"
             }
         }
     }

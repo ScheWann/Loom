@@ -5,18 +5,19 @@ import tempfile
 import time
 
 
-def run_spata2_analysis(base_sample_id, barcodes_data, start_16um_lowres, end_16um_lowres, arrow_width_16um_pixels, trajectory_name):
+def run_spata2_analysis(base_sample_id, rds_file, barcodes_data, start_16um_lowres, end_16um_lowres, arrow_width_16um_pixels, trajectory_name):
     """
     Run SPATA2 analysis using R subprocess
-    
+
     Parameters:
-    - base_sample_id: Base sample ID (e.g., "skin_TXK6Z4X_A1")
+    - base_sample_id: Base sample ID (e.g., "skin_TXK6Z4X_A1"), used for logging/errors
+    - rds_file: Absolute path to the processed 16um SPATA2 object (.rds) for this sample
     - barcodes_data: List of barcode dictionaries with 'barcode', 'x_fullres', 'y_fullres'
     - start_16um_lowres: [x, y] start coordinates in 16um lowres space
     - end_16um_lowres: [x, y] end coordinates in 16um lowres space
     - arrow_width_16um_pixels: Arrow width in 16um pixels
     - trajectory_name: User-defined name for the trajectory
-    
+
     Returns:
     - Dictionary containing trajectory data, significant genes, and trajectory ID
     """
@@ -24,16 +25,10 @@ def run_spata2_analysis(base_sample_id, barcodes_data, start_16um_lowres, end_16
         with tempfile.TemporaryDirectory() as temp_dir:
             # Use the provided trajectory name as the trajectory ID
             trajectory_id = trajectory_name
-            
-            # Determine which RDS file to use based on sample ID
-            example_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-            if "skin_TXK6Z4X_A1" in base_sample_id:
-                rds_file = os.path.join(example_data_dir, "skin_TXK6Z4X_A1_16um_object_processed.rds")
-            elif "skin_TXK6Z4X_D1" in base_sample_id:
-                rds_file = os.path.join(example_data_dir, "skin_TXK6Z4X_D1_16um_object_processed.rds")
-            else:
-                raise ValueError(f"No matching RDS file found for sample {base_sample_id}")
-            
+
+            if not rds_file:
+                raise ValueError(f"No RDS file configured for sample {base_sample_id}")
+
             if not os.path.exists(rds_file):
                 raise FileNotFoundError(f"RDS file not found: {rds_file}")
             

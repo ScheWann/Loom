@@ -60,6 +60,16 @@ with open(JSON_PATH, "r") as f:
     SAMPLES = json.load(f)
 
 
+def resolve_data_path(rel_path):
+    """
+    Resolve a path configured in samples_list.json (relative to the Backend/ dir)
+    to an absolute path. Returns None if rel_path is falsy.
+    """
+    if not rel_path:
+        return None
+    return rel_path if os.path.isabs(rel_path) else os.path.normpath(os.path.join(BASE_DIR, rel_path))
+
+
 def load_adata_to_cache(sample_ids):
     """
     Load AnnData objects for the given sample IDs into the global cache.
@@ -1141,7 +1151,11 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
         # Convert leiden column to categorical if it isn't already
         if not pd.api.types.is_categorical_dtype(adata_filtered.obs[leiden_col]):
             adata_filtered.obs[leiden_col] = adata_filtered.obs[leiden_col].astype('category')
-        
+
+        # Cell count of the cluster being analyzed (for debugging / inspecting speed)
+        cluster_cell_count = int((adata_filtered.obs[leiden_col].astype(str) == str(cluster_id)).sum())
+        print(f"GO_ANALYSIS_DEBUG: sample_id={sample_id}, umap={adata_umap_title}, cluster={cluster_id}, cluster_cells={cluster_cell_count}, total_umap_cells={adata_filtered.n_obs}", flush=True)
+
         # Gene ranking
         sc.tl.rank_genes_groups(adata_filtered, groupby=leiden_col, method='wilcoxon')
         cluster_name = str(cluster_id)
@@ -1782,20 +1796,18 @@ def convert_arrow_width_to_16um_pixels(sample_id, arrow_width_frontend_pixels):
     # Convert frontend pixels to full-resolution pixels
     arrow_width_fullres_pixels = arrow_width_frontend_pixels / current_scale_factor
     
-    # Construct path to 16µm scalefactors using unified H1- naming
-    python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-    sample_token = base_sample_id.replace("skin_", "")
-    sample_token_dash = sample_token.replace("_", "-")
-
-    scalefactors_16um_path = os.path.join(
-        python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
-    )
+    # Resolve the sample-level 16µm scalefactors path from samples_list.json
+    scalefactors_16um_path = resolve_data_path(sample_info.get("scalefactors_16um_path"))
+    if not scalefactors_16um_path:
+        raise ValueError(
+            f"No 'scalefactors_16um_path' configured for {base_sample_id} in samples_list.json"
+        )
 
     if not os.path.exists(scalefactors_16um_path):
         raise ValueError(
             f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
         )
-    
+
     try:
         import json
         with open(scalefactors_16um_path, 'r') as f:
@@ -1884,20 +1896,18 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
         x0 = float(np.median(D[:,0]))
         y0 = float(np.median(D[:,1]))
         
-        # Load 16µm scalefactors from Example_Data root using unified H1- naming
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-        sample_token = base_sample_id.replace("skin_", "")
-        sample_token_dash = sample_token.replace("_", "-")
-
-        scalefactors_16um_path = os.path.join(
-            python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
-        )
+        # Resolve the sample-level 16µm scalefactors path from samples_list.json
+        scalefactors_16um_path = resolve_data_path(sample_info.get("scalefactors_16um_path"))
+        if not scalefactors_16um_path:
+            raise ValueError(
+                f"No 'scalefactors_16um_path' configured for {base_sample_id} in samples_list.json"
+            )
 
         if not os.path.exists(scalefactors_16um_path):
             raise ValueError(
                 f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
             )
-        
+
         with open(scalefactors_16um_path, 'r') as f:
             scalefactors_16um = json.load(f)
         
@@ -2043,37 +2053,49 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         # Convert frontend pixels to full-resolution pixels using the same scale factor
         arrow_width_fullres_pixels = arrow_width_pixels / s
         
-        # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-        sample_token = base_sample_id.replace("skin_", "")
-        sample_token_dash = sample_token.replace("_", "-")
-
-        scalefactors_16um_path = os.path.join(
-            python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
-        )
+        # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space.
+        # These are sample-level reference files used by trajectory analysis regardless
+        # of the viewing scale, configured in samples_list.json.
+        scalefactors_16um_path = resolve_data_path(sample_info.get("scalefactors_16um_path"))
+        if not scalefactors_16um_path:
+            return {
+                "status": "error",
+                "message": (
+                    f"SPATA2 trajectory analysis is not available for {base_sample_id}: "
+                    f"no 'scalefactors_16um_path' configured in samples_list.json."
+                ),
+                "sample_id": sample_id,
+            }
 
         if not os.path.exists(scalefactors_16um_path):
             raise ValueError(
                 f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
             )
-        
+
         with open(scalefactors_16um_path, 'r') as f:
             scalefactors_16um = json.load(f)
-        
+
         tissue_lowres_scalef_16um = float(scalefactors_16um["tissue_lowres_scalef"])
-        
+
         # Convert trajectory fullres coordinates to 16µm lowres coordinates
         trajectory_16um_lowres = trajectory_fullres * tissue_lowres_scalef_16um
         start_16um_lowres = trajectory_16um_lowres[0].tolist()
         end_16um_lowres = trajectory_16um_lowres[1].tolist()
-        
+
         # Convert arrow width from full-resolution to 16µm lowres pixels
         arrow_width_16um_pixels = arrow_width_fullres_pixels * tissue_lowres_scalef_16um
-        
-        # Find the 16um parquet file path in Example_Data root using the same sample token as scalefactors.
-        tgt_16um_parquet = scalefactors_16um_path.replace(
-            "_scalefactors_json.json", "_tissue_positions.parquet"
-        )
+
+        # Resolve the 16um tissue_positions.parquet (sample-level, from samples_list.json).
+        tgt_16um_parquet = resolve_data_path(sample_info.get("tissue_positions_16um_path"))
+        if not tgt_16um_parquet:
+            return {
+                "status": "error",
+                "message": (
+                    f"SPATA2 trajectory analysis is not available for {base_sample_id}: "
+                    f"no 'tissue_positions_16um_path' configured in samples_list.json."
+                ),
+                "sample_id": sample_id,
+            }
 
         if not os.path.exists(tgt_16um_parquet):
             return {
@@ -2098,12 +2120,27 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
                 "sample_id": sample_id
             }
         
+        # Resolve the processed SPATA2 object (.rds) for this sample.
+        # The .rds is a sample-level resource (the 16um SPATA2 object) and is used
+        # for trajectory analysis regardless of the viewing scale (2um/8um/16um).
+        rds_file = resolve_data_path(sample_info.get("rds_path"))
+        if not rds_file:
+            return {
+                "status": "error",
+                "message": (
+                    f"SPATA2 trajectory analysis is not available for {base_sample_id}: "
+                    f"no 'rds_path' configured in samples_list.json."
+                ),
+                "sample_id": sample_id,
+            }
+
         # Run SPATA2 analysis
         spata2_results = run_spata2_analysis(
-            base_sample_id, 
+            base_sample_id,
+            rds_file,
             bc16.to_dict('records') if len(bc16) > 0 else [],
-            start_16um_lowres, 
-            end_16um_lowres, 
+            start_16um_lowres,
+            end_16um_lowres,
             arrow_width_16um_pixels,
             trajectory_name
         )
