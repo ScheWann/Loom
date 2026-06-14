@@ -17,6 +17,7 @@ export const hexToRgb = (hex) => {
         : [255, 0, 0];
 };
 
+// color to cell type mapping
 export const COLOR_PALETTE = [
     "#1f77b4",
     "#ff7f0e",
@@ -40,8 +41,8 @@ export const COLOR_PALETTE = [
     "#9edae5",
 ];
 
+// color to cluster mapping
 export const COLOR_BREWER2_PALETTE = [
-    // "#a6cee3",
     "#b15928",
     "#33a02c",
     "#fb9a99",
@@ -55,7 +56,20 @@ export const COLOR_BREWER2_PALETTE = [
     "#b2df8a",
 ];
 
-export const COLOR_BREWER3_PALETTE_EXTRA = [
+// color to gene pseudotime trajectory mapping
+export const COLOR_BREWER2_PALETTE_GENE = [
+    '#a6761d',
+    '#e6ab02',
+    '#e7298a',
+    '#7570b3',
+    '#d95f02',
+    '#1b9e77',
+    '#66a61e',
+    '#666666',
+];
+
+// color to trajectory mapping
+export const COLOR_BREWER2_PALETTE_EXTRA = [
     "#984ea3", 
     "#377eb8", 
     "#e41a1c", 

@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox, Tooltip } from 'antd';
-import { COLOR_BREWER2_PALETTE, COLOR_BREWER3_PALETTE_EXTRA } from "./Utils";
+import { COLOR_BREWER2_PALETTE, COLOR_BREWER2_PALETTE_GENE, COLOR_BREWER2_PALETTE_EXTRA } from "./Utils";
 
 const COLORS = COLOR_BREWER2_PALETTE;
-const TRAJECTORY_COLORS = COLOR_BREWER3_PALETTE_EXTRA;
+const GENE_COLORS = COLOR_BREWER2_PALETTE_GENE;
+const TRAJECTORY_COLORS = COLOR_BREWER2_PALETTE_EXTRA;
 
 export const PseudotimeGlyph = ({
     adata_umap_title,
@@ -776,8 +777,8 @@ export const PseudotimeGlyph = ({
             .domain([0, 1])
             .range([Math.PI, 2 * Math.PI]); // From left side (180°) to right side (360°) through upper half
 
-        // Gene colors using custom color scheme
-        const geneColors = COLORS;
+        // Gene colors using custom gene color scheme
+        const geneColors = GENE_COLORS;
 
         geneData.forEach((geneInfo, geneIndex) => {
             const color = geneColors[geneIndex % geneColors.length];
