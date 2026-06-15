@@ -1414,9 +1414,22 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         cached_keys,
     )
 
+    # The first cluster in the requested trajectory path is the start cluster.
+    # Use it to pick the matching per-start-cluster cache entry so that switching
+    # the start cluster (e.g. 0 vs 2) returns the corresponding trajectory rather
+    # than always reusing whichever start cluster was computed first.
+    start_cluster_key = None
+    if trajectory_path:
+        start_cluster_key = f"{adata_umap_title}_cluster_{trajectory_path[0]}"
+
     def _find_cache_key(cache_dict):
+        # Prefer the cache entry for the requested start cluster.
+        if start_cluster_key is not None and start_cluster_key in cache_dict:
+            return start_cluster_key
+        # Then the auto/no-start-cluster entry stored under the plain title.
         if adata_umap_title in cache_dict:
             return adata_umap_title
+        # Fall back to any per-cluster entry for this title.
         for key in cache_dict.keys():
             if key.startswith(f"{adata_umap_title}_cluster_"):
                 return key
