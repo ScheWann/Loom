@@ -1055,8 +1055,8 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             print("HVG failed, using all genes")
             adata.var['highly_variable'] = True
 
-        # sc.pp.normalize_total(adata)
-        # sc.pp.log1p(adata)
+        sc.pp.normalize_total(adata)
+        sc.pp.log1p(adata)
         sc.pp.scale(adata, max_value=10)
 
         try:
