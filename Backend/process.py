@@ -1394,7 +1394,95 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
         raise ValueError(f"No gene expression data available for sample {sample_id}")
 
 
-def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, trajectory_path):
+def _has_per_cell_pseudotime(adata, embedding_key=None):
+    """
+    Return True if `adata` carries any per-cell Slingshot pseudotime values.
+    """
+    if adata is None:
+        return False
+
+    uns = getattr(adata, "uns", None) or {}
+    if embedding_key:
+        prefix = f"slingshot_pseudotime_{embedding_key}"
+        if any(str(k).startswith(prefix) for k in uns.keys()):
+            return True
+    if any(str(k).startswith("slingshot_pseudotime") for k in uns.keys()):
+        return True
+
+    obs = getattr(adata, "obs", None)
+    if obs is not None:
+        if any(str(c).startswith("slingshot_pseudotime") for c in obs.columns):
+            return True
+    return False
+
+
+def _collect_per_cell_pseudotime_items(adata, embedding_key):
+    """
+    Gather candidate per-cell pseudotime arrays as a list of (name, values).
+    """
+    items = []
+
+    uns = getattr(adata, "uns", None) or {}
+    pt_prefix = f"slingshot_pseudotime_{embedding_key}"
+    items = [
+        (c, np.asarray(uns[c], dtype=float).ravel())
+        for c in uns.keys()
+        if str(c).startswith(pt_prefix)
+    ]
+    if not items:
+        items = [
+            (c, np.asarray(uns[c], dtype=float).ravel())
+            for c in uns.keys()
+            if str(c).startswith("slingshot_pseudotime")
+        ]
+    if not items:
+        obs = getattr(adata, "obs", None)
+        if obs is not None:
+            items = [
+                (c, np.asarray(obs[c].values, dtype=float).ravel())
+                for c in obs.columns
+                if str(c).startswith("slingshot_pseudotime")
+            ]
+    return items
+
+
+def _select_lineage_pseudotime(adata, embedding_key, leiden_col, trajectory_path):
+    """
+    Pick the per-cell Slingshot pseudotime that best matches the requested trajectory path.
+    """
+    pt_items = _collect_per_cell_pseudotime_items(adata, embedding_key)
+    if not pt_items:
+        return None, None, None
+
+    cluster_labels = adata.obs[leiden_col].astype(str).values
+    path_set = [str(c) for c in trajectory_path] if trajectory_path else []
+    in_path = (
+        np.isin(cluster_labels, path_set)
+        if path_set
+        else np.ones(len(cluster_labels), dtype=bool)
+    )
+
+    best_col, best_vals, best_score = None, None, -1
+    for col, vals in pt_items:
+        if vals.shape[0] != adata.n_obs:
+            continue
+        score = int(np.sum((~np.isnan(vals)) & in_path))
+        if score > best_score:
+            best_score, best_col, best_vals = score, col, vals
+
+    if best_col is None or best_score <= 0:
+        return None, None, None
+    return best_col, best_vals, in_path
+
+
+def get_trajectory_gene_expression(
+    sample_id,
+    adata_umap_title,
+    gene_names,
+    trajectory_path,
+    mode="cluster_loess",
+    normalize=True,
+):
     """
     Get gene expression data along a specific trajectory path using pre-calculated pseudotime values.
     
@@ -1422,18 +1510,35 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
     if trajectory_path:
         start_cluster_key = f"{adata_umap_title}_cluster_{trajectory_path[0]}"
 
+    base_umap_title = adata_umap_title
+    _suffix_parts = base_umap_title.rsplit("_cluster_", 1)
+    if len(_suffix_parts) == 2 and _suffix_parts[1].isdigit():
+        base_umap_title = _suffix_parts[0]
+    embedding_key = f"X_umap_{base_umap_title}"
+    prefer_pseudotime = mode == "binned"
+
     def _find_cache_key(cache_dict):
-        # Prefer the cache entry for the requested start cluster.
+        # Build the candidate keys in priority order.
+        candidates = []
         if start_cluster_key is not None and start_cluster_key in cache_dict:
-            return start_cluster_key
-        # Then the auto/no-start-cluster entry stored under the plain title.
+            candidates.append(start_cluster_key)
         if adata_umap_title in cache_dict:
-            return adata_umap_title
-        # Fall back to any per-cluster entry for this title.
+            candidates.append(adata_umap_title)
         for key in cache_dict.keys():
-            if key.startswith(f"{adata_umap_title}_cluster_"):
-                return key
-        return None
+            if key == "trajectory_results":
+                continue
+            if key.startswith(f"{adata_umap_title}_cluster_") and key not in candidates:
+                candidates.append(key)
+
+        if not candidates:
+            return None
+
+        if prefer_pseudotime:
+            for key in candidates:
+                if _has_per_cell_pseudotime(cache_dict.get(key), embedding_key):
+                    return key
+
+        return candidates[0]
 
     resolved_sample_id = requested_sample_id
     cache_key_used = None
@@ -1473,15 +1578,11 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         )
 
     adata = PROCESSED_ADATA_CACHE[resolved_sample_id][cache_key_used]
-    print(f"Using cached data with key: {cache_key_used} from sample '{resolved_sample_id}'")
-    print(f"Cached adata shape: {adata.shape}, n_vars: {adata.n_vars}")
     
     # Validate gene names
     if isinstance(gene_names, str):
         gene_names = [gene_names]
     
-    print(f"Input gene_names: {gene_names}")
-    print(f"First 10 genes in adata.var_names: {list(adata.var_names[:10])}")
     
     available_genes = []
     for gene in gene_names:
@@ -1489,14 +1590,13 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             available_genes.append(gene)
         else:
             print(f"Gene '{gene}' not found in dataset")
-    print(f"Available genes for analysis: {available_genes}")
     if not available_genes:
         print(f"Gene validation failed. Dataset has {adata.n_vars} genes total.")
         print(f"Sample gene names (first 20): {list(adata.var_names[:20])}")
         raise ValueError("No valid genes found in dataset")
     
-    # Get the leiden column name
-    leiden_col = f'leiden_{adata_umap_title}'
+    # Get the leiden column name (base title, suffix already stripped above)
+    leiden_col = f'leiden_{base_umap_title}'
     if leiden_col not in adata.obs.columns:
         # Try to find any leiden column
         leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden')]
@@ -1504,7 +1604,7 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             leiden_col = leiden_cols[0]
         else:
             raise ValueError("No leiden clustering column found in the dataset")
-    
+
     # Try to get trajectory results from cache first (preferred method)
     trajectory_results = None
     if (
@@ -1512,7 +1612,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         and cache_key_used in PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results']
     ):
         trajectory_results = PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results'][cache_key_used]
-        print(f"Using cached trajectory results for pseudotime values with key: {cache_key_used}")
     
     cluster_pseudotime_map = None
     if trajectory_results and isinstance(trajectory_results, list) and len(trajectory_results) > 0:
@@ -1546,7 +1645,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
                 if cluster_path == requested_path:
                     matched_path = cluster_path
                     matched_pseudotime = pseudotime_values
-                    print(f"Matched requested trajectory path exactly: {requested_path}")
                     break
 
         # Second pass fallback: pick the most similar trajectory if exact match is unavailable
@@ -1597,7 +1695,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
                 if lineage1_cols:
                     pseudotime_col = lineage1_cols[0]
             
-            print(f"Using pseudotime column: {pseudotime_col}")
             pseudotime_values = adata.uns[pseudotime_col]
             
             # Create a mapping from cluster to pseudotime
@@ -1621,47 +1718,97 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             for i, cluster in enumerate(trajectory_path):
                 cluster_pseudotime_map[str(cluster)] = float(i)
     
-    # Analyze gene expression along the trajectory
+    # cluster_loess: sample a per-cell LOESS fit at each cluster's pseudotime
+    use_loess = (mode == "cluster_loess")
+    loess_pt = None
+    loess_mask = None
+    cluster_rawmean = None
+    if use_loess:
+        _pt_col, _pt_vals, _in_path = _select_lineage_pseudotime(
+            adata, embedding_key, leiden_col, trajectory_path
+        )
+        if _pt_col is None:
+            use_loess = False
+        else:
+            _valid = ~np.isnan(_pt_vals)
+            _mask = _valid & _in_path
+            if int(_mask.sum()) < 5:
+                _mask = _valid
+            loess_pt = _pt_vals
+            loess_mask = _mask
+            _labels = adata.obs[leiden_col].astype(str).values
+            cluster_rawmean = {}
+            for _cl in set(str(c) for c in trajectory_path):
+                _sel = loess_mask & (_labels == _cl)
+                if np.any(_sel):
+                    cluster_rawmean[_cl] = float(np.mean(_pt_vals[_sel]))
+
+    # Analyze gene expression along the trajectory: one point per cluster.
     result_data = []
-    
+
     for gene in available_genes:
         # Get gene expression data
         gene_idx = adata.var_names.get_loc(gene)
-        
+
         # Get expression values for all cells
         if hasattr(adata.X, "toarray"):
             gene_expr = adata.X[:, gene_idx].toarray().flatten()
         else:
-            gene_expr = adata.X[:, gene_idx]
-        
+            gene_expr = np.asarray(adata.X[:, gene_idx]).flatten()
+
         # Get cluster labels
         cluster_labels = adata.obs[leiden_col].astype(str)
-        
-        # Calculate mean expression for each cluster in the trajectory
+
+        # Per-gene LOESS fit over per-cell data (cluster_loess only).
+        loess_fx = None
+        loess_fy = None
+        if use_loess and loess_pt is not None:
+            from statsmodels.nonparametric.smoothers_lowess import lowess
+
+            _x = loess_pt[loess_mask]
+            _y = gene_expr[loess_mask]
+            _o = np.argsort(_x)
+            _xs = _x[_o]
+            _ys = _y[_o]
+            if len(_xs) >= 10 and _xs[-1] > _xs[0]:
+                _frac = min(0.5, max(0.1, 30.0 / len(_xs)))
+                _fit = lowess(_ys, _xs, frac=_frac, return_sorted=True)
+                loess_fx = _fit[:, 0]
+                loess_fy = _fit[:, 1]
+
+        # One point per cluster, at the cluster's (corrected) pseudotime.
         time_points = []
         expression_values = []
-        
+        point_clusters = []
         for cluster in trajectory_path:
             cluster_str = str(cluster)
-            if cluster_str in cluster_pseudotime_map:
-                cluster_cells = cluster_labels == cluster_str
-                if cluster_cells.sum() > 0:
-                    # Get gene expression for this cluster
-                    cluster_expr = gene_expr[cluster_cells]
-                    mean_expr = float(np.mean(cluster_expr))
-                    time_point = cluster_pseudotime_map[cluster_str]
-                    
-                    time_points.append(time_point)
-                    expression_values.append(mean_expr)
-        
+            if cluster_str not in cluster_pseudotime_map:
+                continue
+            cluster_cells = cluster_labels == cluster_str
+            if cluster_cells.sum() == 0:
+                continue
+            if (
+                use_loess
+                and loess_fx is not None
+                and cluster_rawmean is not None
+                and cluster_str in cluster_rawmean
+            ):
+                value = float(np.interp(cluster_rawmean[cluster_str], loess_fx, loess_fy))
+            else:
+                value = float(np.mean(gene_expr[cluster_cells]))
+            time_points.append(cluster_pseudotime_map[cluster_str])
+            expression_values.append(value)
+            point_clusters.append(cluster_str)
+
         # Sort by time points
         if len(time_points) > 1:
             sorted_indices = np.argsort(time_points)
             time_points = [time_points[i] for i in sorted_indices]
             expression_values = [expression_values[i] for i in sorted_indices]
-        
-        # Normalize expression values to [0, 1] range
-        if len(expression_values) > 0:
+            point_clusters = [point_clusters[i] for i in sorted_indices]
+
+        # Normalize expression values to [0, 1] range (unless disabled)
+        if normalize and len(expression_values) > 0:
             min_expr = min(expression_values)
             max_expr = max(expression_values)
             if max_expr > min_expr:
@@ -1669,15 +1816,16 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             else:
                 normalized_expr = [0.5] * len(expression_values)  # All same value, set to middle
         else:
-            normalized_expr = []
-        
+            normalized_expr = [float(e) for e in expression_values]
+
         gene_data = {
             "gene": gene,
             "timePoints": time_points,
-            "expressions": normalized_expr
+            "expressions": normalized_expr,
+            "clusters": point_clusters
         }
         result_data.append(gene_data)
-    
+
     return result_data
 
 

@@ -145,6 +145,19 @@ body {
   margin-top: -5px;
 }
 
+/* Pseudotime gene selector: pin the control to a single row so adding tags
+   (and antd's responsive overflow measurement) can't briefly grow it to two
+   rows. That transient growth shifted the glyph grid and flipped the open
+   dropdown from below to above, causing a visible jitter. */
+.pseudotime-gene-select.ant-select-multiple.ant-select-sm .ant-select-selector {
+  height: 24px;
+  overflow: hidden;
+}
+
+.pseudotime-gene-select.ant-select-multiple.ant-select-sm .ant-select-selection-overflow {
+  flex-wrap: nowrap;
+}
+
 .ant-spin-nested-loading {
   height: 100%;
 }

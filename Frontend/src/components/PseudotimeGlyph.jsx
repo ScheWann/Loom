@@ -686,6 +686,12 @@ export const PseudotimeGlyph = ({
         const maxRadius = axisLength / 2 - 15;
         const topSection = g.append("g").attr("class", "top-section");
 
+        const _geneTimes = (geneData && Array.isArray(geneData))
+            ? geneData.flatMap(gd => (gd.timePoints || []).map(Number)).filter(Number.isFinite)
+            : [];
+        const timeMin = _geneTimes.length ? Math.min(minPseudotime, ..._geneTimes) : minPseudotime;
+        const timeMax = _geneTimes.length ? Math.max(maxPseudotime, ..._geneTimes) : maxPseudotime;
+
         // Left arc for Low Expression (red)
         const lowExprArc = d3.arc()
             .innerRadius(8)
@@ -716,11 +722,11 @@ export const PseudotimeGlyph = ({
 
         // Add concentric circles for time progression using trajectory data time range
         // These should always be shown as a time reference
-        const trajectoryTimeRange = maxPseudotime - minPseudotime;
+        const trajectoryTimeRange = (timeMax - timeMin) || 1;
         const numTimeCircles = 4;
         for (let i = 1; i <= numTimeCircles; i++) {
-            const time = minPseudotime + (i / numTimeCircles) * trajectoryTimeRange;
-            const radius = 8 + ((time - minPseudotime) / trajectoryTimeRange) * (maxRadius - 8);
+            const time = timeMin + (i / numTimeCircles) * trajectoryTimeRange;
+            const radius = 8 + ((time - timeMin) / trajectoryTimeRange) * (maxRadius - 8);
 
             // Draw complete circles
             topSection.append("circle")
@@ -768,14 +774,14 @@ export const PseudotimeGlyph = ({
         // Time point scale (radial distance represents time progression)
         // Use the same scaling as concentric circles and trajectory data
         const timeScale = d3.scaleLinear()
-            .domain([minPseudotime, maxPseudotime])
-            .range([8, maxRadius]); // Start from time point 0 circle edge (radius 8)
+            .domain([timeMin, timeMax])
+            .range([8, maxRadius])
+            .clamp(true); // Start from time point 0 circle edge (radius 8)
 
-        // Expression scale (angular position - higher expression = more to the right)
-        // Upper half only: from left (π) to right (2π) of the upper semicircle
         const expressionScale = d3.scaleLinear()
             .domain([0, 1])
-            .range([Math.PI, 2 * Math.PI]); // From left side (180°) to right side (360°) through upper half
+            .range([Math.PI, 2 * Math.PI])
+            .clamp(true);
 
         // Gene colors using custom gene color scheme
         const geneColors = GENE_COLORS;
