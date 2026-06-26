@@ -31,5 +31,8 @@ Siyuan Zhao, Nafiul Nipu, Hossein Fathollahian, Hao Chen, Ameen Salahudeen, Olga
 - Comparative analysis across ROIs and samples  
 - Novel glyph-based encoding
 
+## Data
+Sample data can be found at https://osf.io/phtzr/. The data was fully de-identified in accordance with an approved IRB protocol prior to its use in this study.
+
 ## License
 Loom is MIT Licensed. Free for both commercial and research use.
