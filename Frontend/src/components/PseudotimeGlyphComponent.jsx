@@ -888,9 +888,12 @@ export const PseudotimeGlyphComponent = ({
             justifyContent: 'center'
         }}>
             {/* Gene Selection Dropdown and Confirmation Button */}
+            {/* Fixed height keeps the toolbar from reflowing when tags are added/removed,
+                which otherwise shifts the glyph grid and flips the open dropdown. */}
             <div style={{
-                top: '5px',
-                right: '10px',
+                height: '35px',
+                flexShrink: 0,
+                boxSizing: 'border-box',
                 zIndex: 999,
                 display: 'flex',
                 gap: '8px',

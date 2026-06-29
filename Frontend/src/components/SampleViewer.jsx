@@ -5049,7 +5049,15 @@ export const SampleViewer = ({
                                             { value: '0.7' },
                                             { value: '0.8' },
                                             { value: '0.9' },
-                                            { value: '1.0' }
+                                            { value: '1.0' },
+                                            { value: '1.1' },
+                                            { value: '1.2' },
+                                            { value: '1.3' },
+                                            { value: '1.4' },
+                                            { value: '1.5' },
+                                            { value: '2.0' },
+                                            { value: '3.0' },
+                                            { value: '5.0' }
                                         ]}
                                         size="small"
                                         style={{ flex: 1 }}

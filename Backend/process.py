@@ -60,6 +60,16 @@ with open(JSON_PATH, "r") as f:
     SAMPLES = json.load(f)
 
 
+def resolve_data_path(rel_path):
+    """
+    Resolve a path configured in samples_list.json (relative to the Backend/ dir)
+    to an absolute path. Returns None if rel_path is falsy.
+    """
+    if not rel_path:
+        return None
+    return rel_path if os.path.isabs(rel_path) else os.path.normpath(os.path.join(BASE_DIR, rel_path))
+
+
 def load_adata_to_cache(sample_ids):
     """
     Load AnnData objects for the given sample IDs into the global cache.
@@ -1045,8 +1055,8 @@ def get_umap_data(sample_id, cell_ids=None, n_neighbors=10, n_pcas=30, resolutio
             print("HVG failed, using all genes")
             adata.var['highly_variable'] = True
 
-        # sc.pp.normalize_total(adata)
-        # sc.pp.log1p(adata)
+        sc.pp.normalize_total(adata)
+        sc.pp.log1p(adata)
         sc.pp.scale(adata, max_value=10)
 
         try:
@@ -1141,7 +1151,11 @@ def perform_go_analysis(sample_id, cluster_id, adata_umap_title, top_n=5):
         # Convert leiden column to categorical if it isn't already
         if not pd.api.types.is_categorical_dtype(adata_filtered.obs[leiden_col]):
             adata_filtered.obs[leiden_col] = adata_filtered.obs[leiden_col].astype('category')
-        
+
+        # Cell count of the cluster being analyzed (for debugging / inspecting speed)
+        cluster_cell_count = int((adata_filtered.obs[leiden_col].astype(str) == str(cluster_id)).sum())
+        print(f"GO_ANALYSIS_DEBUG: sample_id={sample_id}, umap={adata_umap_title}, cluster={cluster_id}, cluster_cells={cluster_cell_count}, total_umap_cells={adata_filtered.n_obs}", flush=True)
+
         # Gene ranking
         sc.tl.rank_genes_groups(adata_filtered, groupby=leiden_col, method='wilcoxon')
         cluster_name = str(cluster_id)
@@ -1380,7 +1394,95 @@ def get_direct_slingshot_data(sample_id, cell_ids, adata_umap_title, start_clust
         raise ValueError(f"No gene expression data available for sample {sample_id}")
 
 
-def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, trajectory_path):
+def _has_per_cell_pseudotime(adata, embedding_key=None):
+    """
+    Return True if `adata` carries any per-cell Slingshot pseudotime values.
+    """
+    if adata is None:
+        return False
+
+    uns = getattr(adata, "uns", None) or {}
+    if embedding_key:
+        prefix = f"slingshot_pseudotime_{embedding_key}"
+        if any(str(k).startswith(prefix) for k in uns.keys()):
+            return True
+    if any(str(k).startswith("slingshot_pseudotime") for k in uns.keys()):
+        return True
+
+    obs = getattr(adata, "obs", None)
+    if obs is not None:
+        if any(str(c).startswith("slingshot_pseudotime") for c in obs.columns):
+            return True
+    return False
+
+
+def _collect_per_cell_pseudotime_items(adata, embedding_key):
+    """
+    Gather candidate per-cell pseudotime arrays as a list of (name, values).
+    """
+    items = []
+
+    uns = getattr(adata, "uns", None) or {}
+    pt_prefix = f"slingshot_pseudotime_{embedding_key}"
+    items = [
+        (c, np.asarray(uns[c], dtype=float).ravel())
+        for c in uns.keys()
+        if str(c).startswith(pt_prefix)
+    ]
+    if not items:
+        items = [
+            (c, np.asarray(uns[c], dtype=float).ravel())
+            for c in uns.keys()
+            if str(c).startswith("slingshot_pseudotime")
+        ]
+    if not items:
+        obs = getattr(adata, "obs", None)
+        if obs is not None:
+            items = [
+                (c, np.asarray(obs[c].values, dtype=float).ravel())
+                for c in obs.columns
+                if str(c).startswith("slingshot_pseudotime")
+            ]
+    return items
+
+
+def _select_lineage_pseudotime(adata, embedding_key, leiden_col, trajectory_path):
+    """
+    Pick the per-cell Slingshot pseudotime that best matches the requested trajectory path.
+    """
+    pt_items = _collect_per_cell_pseudotime_items(adata, embedding_key)
+    if not pt_items:
+        return None, None, None
+
+    cluster_labels = adata.obs[leiden_col].astype(str).values
+    path_set = [str(c) for c in trajectory_path] if trajectory_path else []
+    in_path = (
+        np.isin(cluster_labels, path_set)
+        if path_set
+        else np.ones(len(cluster_labels), dtype=bool)
+    )
+
+    best_col, best_vals, best_score = None, None, -1
+    for col, vals in pt_items:
+        if vals.shape[0] != adata.n_obs:
+            continue
+        score = int(np.sum((~np.isnan(vals)) & in_path))
+        if score > best_score:
+            best_score, best_col, best_vals = score, col, vals
+
+    if best_col is None or best_score <= 0:
+        return None, None, None
+    return best_col, best_vals, in_path
+
+
+def get_trajectory_gene_expression(
+    sample_id,
+    adata_umap_title,
+    gene_names,
+    trajectory_path,
+    mode="cluster_loess",
+    normalize=True,
+):
     """
     Get gene expression data along a specific trajectory path using pre-calculated pseudotime values.
     
@@ -1400,13 +1502,43 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         cached_keys,
     )
 
+    # The first cluster in the requested trajectory path is the start cluster.
+    # Use it to pick the matching per-start-cluster cache entry so that switching
+    # the start cluster (e.g. 0 vs 2) returns the corresponding trajectory rather
+    # than always reusing whichever start cluster was computed first.
+    start_cluster_key = None
+    if trajectory_path:
+        start_cluster_key = f"{adata_umap_title}_cluster_{trajectory_path[0]}"
+
+    base_umap_title = adata_umap_title
+    _suffix_parts = base_umap_title.rsplit("_cluster_", 1)
+    if len(_suffix_parts) == 2 and _suffix_parts[1].isdigit():
+        base_umap_title = _suffix_parts[0]
+    embedding_key = f"X_umap_{base_umap_title}"
+    prefer_pseudotime = mode == "binned"
+
     def _find_cache_key(cache_dict):
+        # Build the candidate keys in priority order.
+        candidates = []
+        if start_cluster_key is not None and start_cluster_key in cache_dict:
+            candidates.append(start_cluster_key)
         if adata_umap_title in cache_dict:
-            return adata_umap_title
+            candidates.append(adata_umap_title)
         for key in cache_dict.keys():
-            if key.startswith(f"{adata_umap_title}_cluster_"):
-                return key
-        return None
+            if key == "trajectory_results":
+                continue
+            if key.startswith(f"{adata_umap_title}_cluster_") and key not in candidates:
+                candidates.append(key)
+
+        if not candidates:
+            return None
+
+        if prefer_pseudotime:
+            for key in candidates:
+                if _has_per_cell_pseudotime(cache_dict.get(key), embedding_key):
+                    return key
+
+        return candidates[0]
 
     resolved_sample_id = requested_sample_id
     cache_key_used = None
@@ -1446,15 +1578,11 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         )
 
     adata = PROCESSED_ADATA_CACHE[resolved_sample_id][cache_key_used]
-    print(f"Using cached data with key: {cache_key_used} from sample '{resolved_sample_id}'")
-    print(f"Cached adata shape: {adata.shape}, n_vars: {adata.n_vars}")
     
     # Validate gene names
     if isinstance(gene_names, str):
         gene_names = [gene_names]
     
-    print(f"Input gene_names: {gene_names}")
-    print(f"First 10 genes in adata.var_names: {list(adata.var_names[:10])}")
     
     available_genes = []
     for gene in gene_names:
@@ -1462,14 +1590,13 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             available_genes.append(gene)
         else:
             print(f"Gene '{gene}' not found in dataset")
-    print(f"Available genes for analysis: {available_genes}")
     if not available_genes:
         print(f"Gene validation failed. Dataset has {adata.n_vars} genes total.")
         print(f"Sample gene names (first 20): {list(adata.var_names[:20])}")
         raise ValueError("No valid genes found in dataset")
     
-    # Get the leiden column name
-    leiden_col = f'leiden_{adata_umap_title}'
+    # Get the leiden column name (base title, suffix already stripped above)
+    leiden_col = f'leiden_{base_umap_title}'
     if leiden_col not in adata.obs.columns:
         # Try to find any leiden column
         leiden_cols = [col for col in adata.obs.columns if col.startswith('leiden')]
@@ -1477,7 +1604,7 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             leiden_col = leiden_cols[0]
         else:
             raise ValueError("No leiden clustering column found in the dataset")
-    
+
     # Try to get trajectory results from cache first (preferred method)
     trajectory_results = None
     if (
@@ -1485,7 +1612,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
         and cache_key_used in PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results']
     ):
         trajectory_results = PROCESSED_ADATA_CACHE[resolved_sample_id]['trajectory_results'][cache_key_used]
-        print(f"Using cached trajectory results for pseudotime values with key: {cache_key_used}")
     
     cluster_pseudotime_map = None
     if trajectory_results and isinstance(trajectory_results, list) and len(trajectory_results) > 0:
@@ -1519,7 +1645,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
                 if cluster_path == requested_path:
                     matched_path = cluster_path
                     matched_pseudotime = pseudotime_values
-                    print(f"Matched requested trajectory path exactly: {requested_path}")
                     break
 
         # Second pass fallback: pick the most similar trajectory if exact match is unavailable
@@ -1570,7 +1695,6 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
                 if lineage1_cols:
                     pseudotime_col = lineage1_cols[0]
             
-            print(f"Using pseudotime column: {pseudotime_col}")
             pseudotime_values = adata.uns[pseudotime_col]
             
             # Create a mapping from cluster to pseudotime
@@ -1594,47 +1718,97 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             for i, cluster in enumerate(trajectory_path):
                 cluster_pseudotime_map[str(cluster)] = float(i)
     
-    # Analyze gene expression along the trajectory
+    # cluster_loess: sample a per-cell LOESS fit at each cluster's pseudotime
+    use_loess = (mode == "cluster_loess")
+    loess_pt = None
+    loess_mask = None
+    cluster_rawmean = None
+    if use_loess:
+        _pt_col, _pt_vals, _in_path = _select_lineage_pseudotime(
+            adata, embedding_key, leiden_col, trajectory_path
+        )
+        if _pt_col is None:
+            use_loess = False
+        else:
+            _valid = ~np.isnan(_pt_vals)
+            _mask = _valid & _in_path
+            if int(_mask.sum()) < 5:
+                _mask = _valid
+            loess_pt = _pt_vals
+            loess_mask = _mask
+            _labels = adata.obs[leiden_col].astype(str).values
+            cluster_rawmean = {}
+            for _cl in set(str(c) for c in trajectory_path):
+                _sel = loess_mask & (_labels == _cl)
+                if np.any(_sel):
+                    cluster_rawmean[_cl] = float(np.mean(_pt_vals[_sel]))
+
+    # Analyze gene expression along the trajectory: one point per cluster.
     result_data = []
-    
+
     for gene in available_genes:
         # Get gene expression data
         gene_idx = adata.var_names.get_loc(gene)
-        
+
         # Get expression values for all cells
         if hasattr(adata.X, "toarray"):
             gene_expr = adata.X[:, gene_idx].toarray().flatten()
         else:
-            gene_expr = adata.X[:, gene_idx]
-        
+            gene_expr = np.asarray(adata.X[:, gene_idx]).flatten()
+
         # Get cluster labels
         cluster_labels = adata.obs[leiden_col].astype(str)
-        
-        # Calculate mean expression for each cluster in the trajectory
+
+        # Per-gene LOESS fit over per-cell data (cluster_loess only).
+        loess_fx = None
+        loess_fy = None
+        if use_loess and loess_pt is not None:
+            from statsmodels.nonparametric.smoothers_lowess import lowess
+
+            _x = loess_pt[loess_mask]
+            _y = gene_expr[loess_mask]
+            _o = np.argsort(_x)
+            _xs = _x[_o]
+            _ys = _y[_o]
+            if len(_xs) >= 10 and _xs[-1] > _xs[0]:
+                _frac = min(0.5, max(0.1, 30.0 / len(_xs)))
+                _fit = lowess(_ys, _xs, frac=_frac, return_sorted=True)
+                loess_fx = _fit[:, 0]
+                loess_fy = _fit[:, 1]
+
+        # One point per cluster, at the cluster's (corrected) pseudotime.
         time_points = []
         expression_values = []
-        
+        point_clusters = []
         for cluster in trajectory_path:
             cluster_str = str(cluster)
-            if cluster_str in cluster_pseudotime_map:
-                cluster_cells = cluster_labels == cluster_str
-                if cluster_cells.sum() > 0:
-                    # Get gene expression for this cluster
-                    cluster_expr = gene_expr[cluster_cells]
-                    mean_expr = float(np.mean(cluster_expr))
-                    time_point = cluster_pseudotime_map[cluster_str]
-                    
-                    time_points.append(time_point)
-                    expression_values.append(mean_expr)
-        
+            if cluster_str not in cluster_pseudotime_map:
+                continue
+            cluster_cells = cluster_labels == cluster_str
+            if cluster_cells.sum() == 0:
+                continue
+            if (
+                use_loess
+                and loess_fx is not None
+                and cluster_rawmean is not None
+                and cluster_str in cluster_rawmean
+            ):
+                value = float(np.interp(cluster_rawmean[cluster_str], loess_fx, loess_fy))
+            else:
+                value = float(np.mean(gene_expr[cluster_cells]))
+            time_points.append(cluster_pseudotime_map[cluster_str])
+            expression_values.append(value)
+            point_clusters.append(cluster_str)
+
         # Sort by time points
         if len(time_points) > 1:
             sorted_indices = np.argsort(time_points)
             time_points = [time_points[i] for i in sorted_indices]
             expression_values = [expression_values[i] for i in sorted_indices]
-        
-        # Normalize expression values to [0, 1] range
-        if len(expression_values) > 0:
+            point_clusters = [point_clusters[i] for i in sorted_indices]
+
+        # Normalize expression values to [0, 1] range (unless disabled)
+        if normalize and len(expression_values) > 0:
             min_expr = min(expression_values)
             max_expr = max(expression_values)
             if max_expr > min_expr:
@@ -1642,15 +1816,16 @@ def get_trajectory_gene_expression(sample_id, adata_umap_title, gene_names, traj
             else:
                 normalized_expr = [0.5] * len(expression_values)  # All same value, set to middle
         else:
-            normalized_expr = []
-        
+            normalized_expr = [float(e) for e in expression_values]
+
         gene_data = {
             "gene": gene,
             "timePoints": time_points,
-            "expressions": normalized_expr
+            "expressions": normalized_expr,
+            "clusters": point_clusters
         }
         result_data.append(gene_data)
-    
+
     return result_data
 
 
@@ -1782,20 +1957,18 @@ def convert_arrow_width_to_16um_pixels(sample_id, arrow_width_frontend_pixels):
     # Convert frontend pixels to full-resolution pixels
     arrow_width_fullres_pixels = arrow_width_frontend_pixels / current_scale_factor
     
-    # Construct path to 16µm scalefactors using unified H1- naming
-    python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-    sample_token = base_sample_id.replace("skin_", "")
-    sample_token_dash = sample_token.replace("_", "-")
-
-    scalefactors_16um_path = os.path.join(
-        python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
-    )
+    # Resolve the sample-level 16µm scalefactors path from samples_list.json
+    scalefactors_16um_path = resolve_data_path(sample_info.get("scalefactors_16um_path"))
+    if not scalefactors_16um_path:
+        raise ValueError(
+            f"No 'scalefactors_16um_path' configured for {base_sample_id} in samples_list.json"
+        )
 
     if not os.path.exists(scalefactors_16um_path):
         raise ValueError(
             f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
         )
-    
+
     try:
         import json
         with open(scalefactors_16um_path, 'r') as f:
@@ -1884,20 +2057,18 @@ def convert_coordinates_to_16um_lowres(sample_id, coordinates):
         x0 = float(np.median(D[:,0]))
         y0 = float(np.median(D[:,1]))
         
-        # Load 16µm scalefactors from Example_Data root using unified H1- naming
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-        sample_token = base_sample_id.replace("skin_", "")
-        sample_token_dash = sample_token.replace("_", "-")
-
-        scalefactors_16um_path = os.path.join(
-            python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
-        )
+        # Resolve the sample-level 16µm scalefactors path from samples_list.json
+        scalefactors_16um_path = resolve_data_path(sample_info.get("scalefactors_16um_path"))
+        if not scalefactors_16um_path:
+            raise ValueError(
+                f"No 'scalefactors_16um_path' configured for {base_sample_id} in samples_list.json"
+            )
 
         if not os.path.exists(scalefactors_16um_path):
             raise ValueError(
                 f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
             )
-        
+
         with open(scalefactors_16um_path, 'r') as f:
             scalefactors_16um = json.load(f)
         
@@ -2043,37 +2214,49 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
         # Convert frontend pixels to full-resolution pixels using the same scale factor
         arrow_width_fullres_pixels = arrow_width_pixels / s
         
-        # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space
-        python_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Example_Data")
-        sample_token = base_sample_id.replace("skin_", "")
-        sample_token_dash = sample_token.replace("_", "-")
-
-        scalefactors_16um_path = os.path.join(
-            python_dir, f"H1-{sample_token_dash}_scalefactors_json.json"
-        )
+        # Load 16µm scalefactors to convert fullres coordinates to 16µm lowres space.
+        # These are sample-level reference files used by trajectory analysis regardless
+        # of the viewing scale, configured in samples_list.json.
+        scalefactors_16um_path = resolve_data_path(sample_info.get("scalefactors_16um_path"))
+        if not scalefactors_16um_path:
+            return {
+                "status": "error",
+                "message": (
+                    f"SPATA2 trajectory analysis is not available for {base_sample_id}: "
+                    f"no 'scalefactors_16um_path' configured in samples_list.json."
+                ),
+                "sample_id": sample_id,
+            }
 
         if not os.path.exists(scalefactors_16um_path):
             raise ValueError(
                 f"Could not find 16µm scalefactors for {base_sample_id}: {scalefactors_16um_path}"
             )
-        
+
         with open(scalefactors_16um_path, 'r') as f:
             scalefactors_16um = json.load(f)
-        
+
         tissue_lowres_scalef_16um = float(scalefactors_16um["tissue_lowres_scalef"])
-        
+
         # Convert trajectory fullres coordinates to 16µm lowres coordinates
         trajectory_16um_lowres = trajectory_fullres * tissue_lowres_scalef_16um
         start_16um_lowres = trajectory_16um_lowres[0].tolist()
         end_16um_lowres = trajectory_16um_lowres[1].tolist()
-        
+
         # Convert arrow width from full-resolution to 16µm lowres pixels
         arrow_width_16um_pixels = arrow_width_fullres_pixels * tissue_lowres_scalef_16um
-        
-        # Find the 16um parquet file path in Example_Data root using the same sample token as scalefactors.
-        tgt_16um_parquet = scalefactors_16um_path.replace(
-            "_scalefactors_json.json", "_tissue_positions.parquet"
-        )
+
+        # Resolve the 16um tissue_positions.parquet (sample-level, from samples_list.json).
+        tgt_16um_parquet = resolve_data_path(sample_info.get("tissue_positions_16um_path"))
+        if not tgt_16um_parquet:
+            return {
+                "status": "error",
+                "message": (
+                    f"SPATA2 trajectory analysis is not available for {base_sample_id}: "
+                    f"no 'tissue_positions_16um_path' configured in samples_list.json."
+                ),
+                "sample_id": sample_id,
+            }
 
         if not os.path.exists(tgt_16um_parquet):
             return {
@@ -2098,12 +2281,27 @@ def analyze_trajectory(sample_id, start_coordinates, end_coordinates, arrow_widt
                 "sample_id": sample_id
             }
         
+        # Resolve the processed SPATA2 object (.rds) for this sample.
+        # The .rds is a sample-level resource (the 16um SPATA2 object) and is used
+        # for trajectory analysis regardless of the viewing scale (2um/8um/16um).
+        rds_file = resolve_data_path(sample_info.get("rds_path"))
+        if not rds_file:
+            return {
+                "status": "error",
+                "message": (
+                    f"SPATA2 trajectory analysis is not available for {base_sample_id}: "
+                    f"no 'rds_path' configured in samples_list.json."
+                ),
+                "sample_id": sample_id,
+            }
+
         # Run SPATA2 analysis
         spata2_results = run_spata2_analysis(
-            base_sample_id, 
+            base_sample_id,
+            rds_file,
             bc16.to_dict('records') if len(bc16) > 0 else [],
-            start_16um_lowres, 
-            end_16um_lowres, 
+            start_16um_lowres,
+            end_16um_lowres,
             arrow_width_16um_pixels,
             trajectory_name
         )

@@ -1102,8 +1102,11 @@ def direct_slingshot_analysis(
                         "total_cells": traj_info.get("total_cells", 0)
                     })
         
+        # Sort trajectories by coverage (descending) before returning to frontend
+        result_array.sort(key=lambda traj: traj.get("coverage", 0), reverse=True)
+
         return result_adata, result_array
-        
+
     except Exception as e:
         print(f"Error during Slingshot analysis: {e}")
         return None
