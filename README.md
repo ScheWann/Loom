@@ -16,7 +16,7 @@
 **Loom: Multi-Region Analysis of Spatial Transcriptomics with Local Neighborhoods and Global Trajectories**  
 Siyuan Zhao, Nafiul Nipu, Hossein Fathollahian, Hao Chen, Ameen Salahudeen, Olga Karginova, G. Elisabeta Marai  
 
-**Paper**: *Under review*
+**Paper**: IEEE Transactions on Visualization and Computer Graphics, Jan 2027
 
 <div align="center">
   <img src="Image/Teaser.png" width="1000"/>
