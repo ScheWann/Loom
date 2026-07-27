@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore", message=".*Importing read_text from.*anndata.*
 from flask import Flask, request, jsonify, send_file
 from process import SAMPLES
 from flask_cors import CORS
+import math
 import re
 import os
 import threading
@@ -56,6 +57,32 @@ trajectory_jobs_lock = threading.Lock()
 
 # UPLOAD_FOLDER = "../Uploaded_Data"
 # os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+def _json_safe(value):
+    """
+    Recursively replace non-finite floats (NaN / Infinity) with None.
+
+    Python's json encoder writes bare NaN / Infinity tokens, which the browser's
+    JSON.parse rejects, so payloads carrying numeric statistics must be
+    sanitized before they are returned.
+    """
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "tolist") and getattr(value, "shape", ()) != ():
+        # numpy array -> plain list
+        return _json_safe(value.tolist())
+    if hasattr(value, "item") and not isinstance(value, (str, bytes, bool)):
+        # numpy scalar -> python scalar
+        try:
+            value = value.item()
+        except (AttributeError, ValueError):
+            return value
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def _search_genes_internal(sample_ids, query, limit=50):
@@ -462,7 +489,9 @@ def get_direct_slingshot_data_route():
             n_pcas=n_pcas,
             resolutions=resolutions,
         )
-        return jsonify(pseudotime_data)
+        if pseudotime_data is None:
+            return jsonify({"error": "Slingshot analysis failed for the selected cells"}), 500
+        return jsonify(_json_safe(pseudotime_data))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

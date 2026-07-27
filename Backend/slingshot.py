@@ -515,6 +515,25 @@ def run_slingshot_by_subprocess(
         return None
 
 
+def clean_cluster_statistics(cluster_stats):
+    """
+    Drop clusters that have no usable pseudotime and make the stats JSON-safe.
+
+    A cluster can end up with zero valid cells on a lineage (categorical levels
+    kept after subsetting a sample, or cells Slingshot never assigned to the
+    lineage). Those rows come back as count = 0 with NaN mean/std/min/max, which
+    propagates NaN into the corrected pseudotime and makes the response invalid
+    JSON. Clusters with a single cell have an undefined std; use 0.0 instead.
+    """
+    if cluster_stats is None or cluster_stats.empty:
+        return cluster_stats
+
+    keep = (cluster_stats["count"] > 0) & cluster_stats["mean"].notna()
+    cleaned = cluster_stats[keep].copy()
+    cleaned["std"] = cleaned["std"].fillna(0.0)
+    return cleaned
+
+
 def correct_pseudotime_order(trajectory_path, cluster_statistics, method='weighted_interpolation'):
     """
     Correct pseudotime values to ensure monotonic progression along trajectory path.
@@ -537,15 +556,26 @@ def correct_pseudotime_order(trajectory_path, cluster_statistics, method='weight
     cluster_data = []
     for cluster in trajectory_path:
         cluster_str = str(cluster)
-        if cluster_str in cluster_statistics['mean']:
-            cluster_data.append({
-                'cluster': cluster,
-                'original_mean': cluster_statistics['mean'][cluster_str],
-                'std': cluster_statistics['std'][cluster_str],
-                'min': cluster_statistics['min'][cluster_str],
-                'max': cluster_statistics['max'][cluster_str],
-                'count': cluster_statistics['count'][cluster_str]
-            })
+        if cluster_str not in cluster_statistics['mean']:
+            continue
+
+        mean = cluster_statistics['mean'][cluster_str]
+        if mean is None or not np.isfinite(mean):
+            # Cluster has no valid pseudotime on this lineage - skip it so the
+            # NaN does not leak into the corrected values
+            continue
+
+        std = cluster_statistics.get('std', {}).get(cluster_str)
+        count = cluster_statistics.get('count', {}).get(cluster_str)
+
+        cluster_data.append({
+            'cluster': cluster,
+            'original_mean': float(mean),
+            'std': float(std) if std is not None and np.isfinite(std) else 0.0,
+            'min': float(cluster_statistics['min'][cluster_str]),
+            'max': float(cluster_statistics['max'][cluster_str]),
+            'count': max(int(count), 1) if count is not None and np.isfinite(count) else 1
+        })
     
     if len(cluster_data) < 2:
         original_times = [cd['original_mean'] for cd in cluster_data]
@@ -976,14 +1006,32 @@ def direct_slingshot_analysis(
                 })
                 traj_data = traj_data.sort_values(pt_col)
                 
-                cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
+                cluster_stats = traj_data.groupby(cluster_key, observed=True)[pt_col].agg([
                     "mean", "std", "min", "max", "count"
                 ]).sort_values("mean")
-                
+                cluster_stats = clean_cluster_statistics(cluster_stats)
+
+                if cluster_stats.empty:
+                    print(f"Skipping {traj_name} - no cluster has valid pseudotime values")
+                    continue
+
+                # Keep the lineage order, but only for clusters that actually
+                # carry pseudotime on this lineage
+                valid_clusters = {str(c) for c in cluster_stats.index}
+                ordered_clusters = [c for c in cluster_path if str(c) in valid_clusters]
+
+                if len(ordered_clusters) < len(cluster_path):
+                    dropped = [str(c) for c in cluster_path if str(c) not in valid_clusters]
+                    print(f"{traj_name}: dropped clusters without valid pseudotime: {dropped}")
+
+                if not ordered_clusters:
+                    print(f"Skipping {traj_name} - no lineage cluster has valid pseudotime values")
+                    continue
+
                 cluster_transitions[traj_name] = {
-                    "ordered_clusters": cluster_path,
-                    "cluster_statistics": cluster_stats.to_dict() if not cluster_stats.empty else {},
-                    "transition_path": " → ".join([str(c) for c in cluster_path])
+                    "ordered_clusters": ordered_clusters,
+                    "cluster_statistics": cluster_stats.to_dict(),
+                    "transition_path": " → ".join([str(c) for c in ordered_clusters])
                 }
                 
                 print(f"{traj_name}: {cluster_transitions[traj_name]['transition_path']}")
@@ -1006,13 +1054,13 @@ def direct_slingshot_analysis(
                 traj_data = traj_data.sort_values(pt_col)
                 
                 # Calculate cluster statistics along trajectory
-                cluster_stats = traj_data.groupby(cluster_key)[pt_col].agg([
+                cluster_stats = traj_data.groupby(cluster_key, observed=True)[pt_col].agg([
                     "mean", "std", "min", "max", "count"
                 ]).sort_values("mean")
-                
-                # Filter out clusters with NaN mean pseudotime
-                valid_clusters = cluster_stats[~np.isnan(cluster_stats["mean"])]
-                
+
+                # Filter out clusters with NaN mean pseudotime / no valid cells
+                valid_clusters = clean_cluster_statistics(cluster_stats)
+
                 if len(valid_clusters) > 0:
                     cluster_transitions[traj_name] = {
                         "ordered_clusters": valid_clusters.index.tolist(),
