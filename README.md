@@ -23,16 +23,23 @@ Siyuan Zhao, Nafiul Nipu, Hossein Fathollahian, Hao Chen, Ameen Salahudeen, Olga
 </div>
 
 
-## Key Features
-- Supports 2µm / 8µm / 16µm Visium HD data
-- Cross-resolution alignment via spatial coordinate registration
-- Efficient trajectory inference at appropriate resolutions
-- Interactive exploration of spatial trajectories + pseudo-time progression  
-- Comparative analysis across ROIs and samples  
-- Novel glyph-based encoding
-
 ## Data
 Sample data can be found at https://osf.io/phtzr/. The data was fully de-identified in accordance with an approved IRB protocol prior to its use in this study.
+
+
+## Why Loom?
+Spatial transcriptomics workflows often require researchers to move between multiple tools when analyzing regions, resolutions, and trajectories. Loom complements the existing Python ecosystem by providing an integrated visual environment for:
+
+- Exploring Visium HD data at 2 µm, 8 µm, and 16 µm resolutions
+- Aligning spatial coordinates across resolutions
+- Performing trajectory inference at computationally appropriate resolutions
+- Interactively examining spatial trajectories and pseudotime progression
+- Comparing regions of interest across samples
+- Representing multivariate patterns through a novel glyph design
+
+## Ecosystem Compatibility
+Loom builds on widely adopted spatial transcriptomics technologies rather than replacing them. It supports AnnData-based workflows, integrates with Scanpy and Squidpy, processes 10x Genomics Visium HD datasets, and can be deployed through Docker.
+
 
 ## Running with Docker
 
