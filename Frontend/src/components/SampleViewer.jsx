@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
 import DeckGL from '@deck.gl/react';
 import { GeneSettings } from './GeneList';
 import { CellSettings } from './CellList';
@@ -9,7 +9,26 @@ import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl
 import { convertHEXToRGB, COLOR_PALETTE, getSequentialColor } from './Utils';
 
 
-export const SampleViewer = ({
+// A recorded view state also carries the container size and a transitionInterpolator that
+// JSON has flattened into a methodless object; feeding that back to DeckGL throws during
+// render and blanks the whole view. Keep only the camera.
+const toCameraViewState = (viewState) => {
+    const target = viewState?.target;
+
+    if (!Array.isArray(target) || !Number.isFinite(viewState?.zoom)) {
+        return null;
+    }
+
+    return {
+        target: [target[0], target[1], target[2] ?? 0],
+        zoom: viewState.zoom,
+        minZoom: Number.isFinite(viewState.minZoom) ? viewState.minZoom : -5,
+        maxZoom: Number.isFinite(viewState.maxZoom) ? viewState.maxZoom : 2.5
+    };
+};
+
+
+export const SampleViewer = forwardRef(({
     selectedSamples,
     coordinatesData,
     cellTypesData,
@@ -31,7 +50,7 @@ export const SampleViewer = ({
     onTrajectoryAnalysisComplete,
     onAreaSaved,  // Add new callback for when areas are saved
     onAreaDeleted
-}) => {
+}, ref) => {
     const containerRef = useRef(null);
     const areaEditPopupRef = useRef(null);
     const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
@@ -99,6 +118,24 @@ export const SampleViewer = ({
     const [currentDrawingSample, setCurrentDrawingSample] = useState(null);
     const [mousePosition, setMousePosition] = useState(null);
     const [hoveredCell, setHoveredCell] = useState(null);
+
+    // Image sizes arrive asynchronously and re-frame the view, so an example's camera is
+    // held here until that effect can consume it.
+    const exampleViewStateRef = useRef(null);
+
+    useImperativeHandle(ref, () => ({
+        applyExampleSnapshot: (snapshot) => {
+            if (!snapshot) return;
+
+            setCustomAreas(Array.isArray(snapshot.customAreas) ? snapshot.customAreas : []);
+
+            const viewState = toCameraViewState(snapshot.viewState);
+            if (viewState) {
+                exampleViewStateRef.current = viewState;
+                setMainViewState(viewState);
+            }
+        }
+    }), []);
 
     useEffect(() => {
         mainViewStateRef.current = mainViewState;
@@ -3427,6 +3464,9 @@ export const SampleViewer = ({
 
         // Clean up custom areas for samples that are no longer selected
         setCustomAreas(prev => prev.filter(area => currentSampleIds.has(area.sampleId)));
+
+        // Drop a previous example's camera so a new selection is framed normally.
+        exampleViewStateRef.current = null;
     }, [selectedSamples]);
 
     // Handle Kosara display toggle changes from parent
@@ -3866,6 +3906,13 @@ export const SampleViewer = ({
     // Set initial view state when image sizes or offsets change
     useEffect(() => {
         if (!selectedSamples.length || !imageSizes[selectedSamples[0]?.id]) return;
+
+        // An example snapshot brings its own camera; keep it instead of re-framing the whole slide.
+        if (exampleViewStateRef.current) {
+            setMainViewState(exampleViewStateRef.current);
+            exampleViewStateRef.current = null;
+            return;
+        }
 
         const firstSample = selectedSamples[0];
         const offset = sampleOffsets[firstSample.id] ?? [0, 0];
@@ -5255,4 +5302,4 @@ export const SampleViewer = ({
             )}
         </div>
     );
-};
+});

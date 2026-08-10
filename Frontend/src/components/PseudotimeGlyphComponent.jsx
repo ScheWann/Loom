@@ -1,10 +1,10 @@
 import { PseudotimeGlyph } from './PseudotimeGlyph';
 import { Empty, Spin, Select, Button } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { debounce } from './Utils';
 
-export const PseudotimeGlyphComponent = ({
+export const PseudotimeGlyphComponent = forwardRef(({
     adata_umap_title,
     pseudotimeDataSets,
     pseudotimeLoadingStates,
@@ -14,7 +14,7 @@ export const PseudotimeGlyphComponent = ({
     setHoveredTrajectory,
     umapDataSets,
     roiCellIds = null, // Optional ROI cell IDs for region-specific analysis (deprecated - now using umapDataSets directly)
-}) => {
+}, ref) => {
     // State for tracking selected glyphs
     const [selectedGlyphs, setSelectedGlyphs] = useState(new Set());
 
@@ -45,6 +45,19 @@ export const PseudotimeGlyphComponent = ({
     
     // Ref to track the current fetch signature
     const currentFetchSignatureRef = useRef('');
+
+    // The gene selection and its expression traces live only here, so the example has to
+    // restore them through the ref.
+    useImperativeHandle(ref, () => ({
+        applyExampleSnapshot: (snapshot) => {
+            if (!snapshot) return;
+
+            setSelectedGenes(snapshot.selectedGenes || []);
+            setSelectedGlyphs(new Set(snapshot.selectedGlyphs || []));
+            setHiddenGlyphs(new Set(snapshot.hiddenGlyphs || []));
+            setGeneExpressionData(snapshot.geneExpressionData || []);
+        }
+    }), []);
 
     // Memoize the sample IDs to prevent unnecessary re-fetching
     const memoizedSampleIds = useMemo(() => {
@@ -1107,4 +1120,4 @@ export const PseudotimeGlyphComponent = ({
             })()}
         </div>
     );
-};
+});

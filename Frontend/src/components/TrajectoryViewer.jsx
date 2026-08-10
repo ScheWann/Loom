@@ -34,6 +34,26 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     // Throttle mouse move events to prevent excessive updates
     const lastMouseMoveRef = useRef({ time: 0, position: null, xValue: null });
 
+    // Selections restored from the example. The cascade effects below would otherwise clear
+    // them and refetch options the backend has never computed.
+    const exampleSelectionRef = useRef(null);
+
+    const isExampleSelection = (sample, region, trajectory) => {
+        const restored = exampleSelectionRef.current;
+        if (!restored) return false;
+
+        return (
+            restored.selectedSample === sample &&
+            (region === undefined || restored.selectedRegion === region) &&
+            (trajectory === undefined || restored.selectedTrajectory === trajectory)
+        );
+    };
+
+    // Any manual selector change hands control back to the normal fetch cascade.
+    const clearExampleSelection = () => {
+        exampleSelectionRef.current = null;
+    };
+
     // Expose refresh function to parent
     useImperativeHandle(ref, () => ({
         refreshRegions: (sampleIdToRefresh) => {
@@ -74,7 +94,35 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 setAvailableGenes([]);
                 setSelectedGenes([]);
             }
-        }
+        },
+        applyExampleSnapshot: (snapshot) => {
+            if (!snapshot) return;
+
+            // Invalidate in-flight requests so a late response cannot overwrite the
+            // restored options.
+            regionsRequestIdRef.current += 1;
+            trajectoriesRequestIdRef.current += 1;
+            genesRequestIdRef.current += 1;
+            setRegionsLoading(false);
+            setTrajectoriesLoading(false);
+            setGenesLoading(false);
+
+            exampleSelectionRef.current = {
+                selectedSample: snapshot.selectedSample ?? null,
+                selectedRegion: snapshot.selectedRegion ?? null,
+                selectedTrajectory: snapshot.selectedTrajectory ?? null
+            };
+
+            setAvailableRegions(snapshot.availableRegions || []);
+            setAvailableTrajectories(snapshot.availableTrajectories || []);
+            setAvailableGenes(snapshot.availableGenes || []);
+            setTrajectoryDataSets(snapshot.trajectoryDataSets || []);
+            setSelectedSample(snapshot.selectedSample ?? null);
+            setSelectedRegion(snapshot.selectedRegion ?? null);
+            setSelectedTrajectory(snapshot.selectedTrajectory ?? null);
+            setSelectedGenes(snapshot.selectedGenes || []);
+        },
+        clearExampleSelection
     }), [selectedSample, selectedRegion]);
 
     // Track chart container height dynamically
@@ -129,6 +177,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
     // Fetch regions when sample changes
     useEffect(() => {
+        if (isExampleSelection(selectedSample)) return;
+
         if (selectedSample) {
             // Clear downstream selections
             setAvailableRegions([]);
@@ -148,6 +198,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
     // Fetch trajectories when region changes
     useEffect(() => {
+        if (isExampleSelection(selectedSample, selectedRegion)) return;
+
         if (selectedSample && selectedRegion) {
             // Clear downstream selections
             setAvailableTrajectories([]);
@@ -166,6 +218,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
     // Fetch genes when trajectory changes
     useEffect(() => {
+        if (isExampleSelection(selectedSample, selectedRegion, selectedTrajectory)) return;
+
         if (selectedSample && selectedRegion && selectedTrajectory) {
             // Clear downstream selections
             setAvailableGenes([]);
@@ -540,7 +594,10 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                         placeholder="Select Sample"
                         style={{ width: "120px", minWidth: "120px" }}
                         value={selectedSample}
-                        onChange={setSelectedSample}
+                        onChange={(value) => {
+                            clearExampleSelection();
+                            setSelectedSample(value);
+                        }}
                         filterOption={(input, option) =>
                             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
                         }
@@ -558,7 +615,10 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                         placeholder="Select Region"
                         style={{ width: "120px", minWidth: "120px" }}
                         value={selectedRegion}
-                        onChange={setSelectedRegion}
+                        onChange={(value) => {
+                            clearExampleSelection();
+                            setSelectedRegion(value);
+                        }}
                         disabled={!selectedSample || regionsLoading}
                         loading={regionsLoading}
                         filterOption={(input, option) =>
@@ -578,7 +638,10 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                         placeholder="Select Trajectory"
                         style={{ width: "120px", minWidth: "120px" }}
                         value={selectedTrajectory}
-                        onChange={setSelectedTrajectory}
+                        onChange={(value) => {
+                            clearExampleSelection();
+                            setSelectedTrajectory(value);
+                        }}
                         disabled={!selectedRegion || trajectoriesLoading}
                         loading={trajectoriesLoading}
                         filterOption={(input, option) =>

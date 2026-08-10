@@ -8,6 +8,7 @@ import { UmapComponent } from "./components/UmapComponent";
 import { TrajectoryViewer } from "./components/TrajectoryViewer";
 import { PseudotimeGlyphComponent } from "./components/PseudotimeGlyphComponent";
 import { COLOR_PALETTE } from "./components/Utils";
+import { fetchExampleState } from "./components/ExampleState";
 
 // Custom theme configuration
 const customTheme = {
@@ -66,6 +67,16 @@ function App() {
 
   // Ref for TrajectoryViewer to call refresh
   const trajectoryViewerRef = useRef(null);
+
+  // Ref for SampleViewer, used to restore the example ROI
+  const sampleViewerRef = useRef(null);
+
+  // Ref for PseudotimeGlyphComponent, used to restore its gene selection
+  const pseudotimeGlyphRef = useRef(null);
+
+  // Fixed example state
+  const [exampleLoading, setExampleLoading] = useState(false);
+  const [pendingExample, setPendingExample] = useState(null); // Snapshot waiting for the viewers to mount
 
   // Clear all caches on initial page load
   useEffect(() => {
@@ -173,6 +184,8 @@ function App() {
     } else {
       try {
         setSampleDataLoading(true);
+        // A manual confirm hands the trajectory selectors back to the normal cascade.
+        trajectoryViewerRef.current?.clearExampleSelection?.();
         await clearCache();
         const cacheResponse = await fetch("/api/load_adata_cache", {
           method: "POST",
@@ -199,6 +212,73 @@ function App() {
       }
     }
   };
+
+  // Load the pre-recorded example session. Display only: the sample coordinates and
+  // images come from the backend, everything else is replayed from fixed data.
+  const loadExample = async () => {
+    if (exampleLoading || sampleDataLoading) {
+      return;
+    }
+
+    setExampleLoading(true);
+
+    try {
+      const snapshot = await fetchExampleState();
+      const sampleIds = snapshot.samples;
+
+      setSampleDataLoading(true);
+      await clearCache();
+
+      const cacheResponse = await fetch("/api/load_adata_cache", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sample_ids: sampleIds }),
+      });
+
+      if (!cacheResponse.ok) {
+        const errorData = await cacheResponse.json();
+        throw new Error(`Failed to load data cache: ${errorData.error}`);
+      }
+
+      await fetchCoordinates(sampleIds);
+
+      // fetchCoordinates resets cell type selection/colors, so restore the recorded ones after it.
+      if (snapshot.selectedCellTypes && Object.keys(snapshot.selectedCellTypes).length > 0) {
+        setSelectedCellTypes(snapshot.selectedCellTypes);
+      }
+      if (snapshot.cellTypeColors && Object.keys(snapshot.cellTypeColors).length > 0) {
+        setCellTypeColors(snapshot.cellTypeColors);
+      }
+
+      setUmapDataSets(snapshot.umapDataSets || []);
+      setPseudotimeDataSets(snapshot.pseudotimeDataSets || {});
+      setPseudotimeLoadingStates({});
+      setClusterColorMappings(snapshot.clusterColorMappings || {});
+      setTempSamples(sampleIds);
+      setSelectedSamples(sampleIds.map((sample) => ({ id: sample, name: sample })));
+
+      // The viewers only mount once selectedSamples is set, so hand over from an effect.
+      setPendingExample(snapshot);
+    } catch (error) {
+      message.error(`Failed to load example: ${error.message}`);
+      setSampleDataLoading(false);
+    } finally {
+      setExampleLoading(false);
+    }
+  };
+
+  // Push the snapshot into the viewers once they are mounted.
+  useEffect(() => {
+    if (!pendingExample || selectedSamples.length === 0) {
+      return;
+    }
+
+    sampleViewerRef.current?.applyExampleSnapshot(pendingExample.sampleViewer);
+    trajectoryViewerRef.current?.applyExampleSnapshot(pendingExample.trajectoryViewer);
+    pseudotimeGlyphRef.current?.applyExampleSnapshot(pendingExample.pseudotimeGlyph);
+    setPendingExample(null);
+    message.success("Example loaded");
+  }, [pendingExample, selectedSamples]);
 
   // Callback to be called when all images are loaded
   const onImagesLoaded = () => {
@@ -451,6 +531,16 @@ function App() {
               <Button size="small" color="blue" variant="outlined" onClick={confirmSamples}>
                 Confirm
               </Button>
+              <Button
+                size="small"
+                color="purple"
+                variant="outlined"
+                onClick={loadExample}
+                loading={exampleLoading}
+                title="Load a pre-computed example: sample, ROI, UMAP, pseudotime and spatial trajectory"
+              >
+                Example
+              </Button>
             </div>
           </div>
 
@@ -552,6 +642,7 @@ function App() {
                 <Splitter lazy style={{ width: "100%", height: "100%" }}>
                   <Splitter.Panel defaultSize="60%" min="50%" max="60%">
                     <SampleViewer
+                      ref={sampleViewerRef}
                       selectedSamples={selectedSamples}
                       coordinatesData={coordinatesData}
                       cellTypesData={cellTypesData}
@@ -728,6 +819,7 @@ function App() {
                       </Splitter.Panel>
                       <Splitter.Panel defaultSize="33%" min="20%" max="45%">
                         <PseudotimeGlyphComponent
+                          ref={pseudotimeGlyphRef}
                           umapDataSets={umapDataSets}
                           adata_umap_title={umapDataSets.length > 0 ? umapDataSets[0].adata_umap_title : null}
                           relatedSampleIds={umapDataSets.length > 0 ? [...new Set(umapDataSets.map(d => d.sampleId))] : []}
