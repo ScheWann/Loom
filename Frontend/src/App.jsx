@@ -64,6 +64,7 @@ function App() {
 
   // Trajectory guideline state
   const [trajectoryGuideline, setTrajectoryGuideline] = useState(null);
+  const [regionColorMappings, setRegionColorMappings] = useState({});
 
   // Ref for TrajectoryViewer to call refresh
   const trajectoryViewerRef = useRef(null);
@@ -441,7 +442,17 @@ function App() {
   };
 
   // Handler for area saved - refresh regions immediately when area is saved
-  const handleAreaSaved = (sampleId, regionName) => {
+  const handleAreaSaved = (sampleId, regionName, areaColor, previousRegionName = null) => {
+    if (sampleId && regionName && areaColor) {
+      setRegionColorMappings((prev) => {
+        const next = { ...prev };
+        if (previousRegionName && previousRegionName !== regionName) {
+          delete next[`${sampleId}::${previousRegionName}`];
+        }
+        next[`${sampleId}::${regionName}`] = areaColor;
+        return next;
+      });
+    }
     if (trajectoryViewerRef.current) {
       trajectoryViewerRef.current.refreshRegions(sampleId);
     }
@@ -449,6 +460,11 @@ function App() {
 
   // Handler for area deletion - clear TrajectoryViewer datasets and selectors tied to the deleted region
   const handleAreaDeleted = (sampleId, regionName) => {
+    setRegionColorMappings((prev) => {
+      const next = { ...prev };
+      delete next[`${sampleId}::${regionName}`];
+      return next;
+    });
     if (trajectoryViewerRef.current?.clearAreaRelatedData) {
       trajectoryViewerRef.current.clearAreaRelatedData(sampleId, regionName);
     }
@@ -689,6 +705,8 @@ function App() {
                               onGeneSelection={handleTrajectoryGeneSelection}
                               onTrajectoryGuidelineChange={handleTrajectoryGuidelineChange}
                               onTrajectoryAnalysisComplete={handleTrajectoryAnalysisComplete}
+                              regionColorMappings={regionColorMappings}
+                              umapDataSets={umapDataSets}
                             />
                           ) : (
                             <div style={{

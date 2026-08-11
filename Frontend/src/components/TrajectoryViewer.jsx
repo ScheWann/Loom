@@ -5,7 +5,7 @@ import { LineChart } from "./LineChart";
 const { Option } = Select;
 
 // Main trajectory viewer component
-export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection, onTrajectoryGuidelineChange, onTrajectoryAnalysisComplete }, ref) => {
+export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEnabled, onKosaraDisplayToggle, onGeneSelection, onTrajectoryGuidelineChange, onTrajectoryAnalysisComplete, regionColorMappings = {}, umapDataSets = [] }, ref) => {
     const [samplesData, setSamplesData] = useState([]);
     const [selectedSample, setSelectedSample] = useState(null);
     const [availableRegions, setAvailableRegions] = useState([]);
@@ -462,6 +462,15 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     const createChartProps = (dataset) => {
         const { data, genes, sample_id, region_id, trajectory_id } = dataset;
         const availableGenes = genes.filter(gene => data[gene]);
+        const region = availableRegions.find((item) => String(item.id) === String(region_id));
+        const regionName = region?.name || dataset.region_name || region_id;
+        const matchingUmap = umapDataSets.find((item) =>
+            item.sampleId === sample_id &&
+            (String(item.areaName) === String(regionName) || String(item.areaName) === String(region_id))
+        );
+        const areaColor = regionColorMappings[`${sample_id}::${regionName}`]
+            || regionColorMappings[`${sample_id}::${region_id}`]
+            || matchingUmap?.areaColor;
         
         // Create trajectory-specific mouse handlers
         const handleSpecificTrajectoryMouseMove = (normalizedPosition, xValue) => {
@@ -494,8 +503,10 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 }],
                 showErrorBands: true,
                 showLegend: true,
-                margin: { top: 30, right: 20, bottom: 50, left: 60 },
+                margin: { top: 20, right: 14, bottom: 50, left: 50 },
                 errorBandOpacity: 0.3,
+                areaColor,
+                areaName: regionName,
                 onMouseMove: handleSpecificTrajectoryMouseMove,
                 onMouseLeave: handleSpecificTrajectoryMouseLeave
             };
@@ -515,8 +526,10 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                     })),
                 showErrorBands: true,
                 showLegend: true,
-                margin: { top: 30, right: 20, bottom: 40, left: 60 },
+                margin: { top: 20, right: 14, bottom: 40, left: 50 },
                 errorBandOpacity: 0.3,
+                areaColor,
+                areaName: regionName,
                 onMouseMove: handleSpecificTrajectoryMouseMove,
                 onMouseLeave: handleSpecificTrajectoryMouseLeave
             };
@@ -532,7 +545,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 justifyContent: "space-between",
                 alignItems: "center",
                 flexShrink: 0,
-                padding: "8px 10px 8px 10px",
+                padding: "6px 0 2px 8px",
                 flexWrap: "wrap",
                 gap: "8px"
             }}>
@@ -699,8 +712,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                             overflow: "hidden",
                             display: "flex",
                             flexDirection: "column",
-                            gap: "8px",
-                            padding: "8px",
+                            gap: "6px",
+                            padding: 0,
                         }}
                     >
                         {trajectoryDataSets.map((dataset) => {

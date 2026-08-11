@@ -1198,7 +1198,7 @@ export const SampleViewer = forwardRef(({
                 if (result.status === 'success') {
                     // Notify parent component that an area has been saved
                     if (onAreaSaved) {
-                        onAreaSaved(finalArea.sampleId, finalArea.name);
+                        onAreaSaved(finalArea.sampleId, finalArea.name, finalArea.color);
                     }
                 } else {
                     console.error('Failed to store region:', result.message);
@@ -1430,6 +1430,10 @@ export const SampleViewer = forwardRef(({
                 }
                 return dataset;
             }));
+
+            if (onAreaSaved) {
+                onAreaSaved(selectedAreaForEdit.sampleId, editAreaName, editAreaColor, selectedAreaForEdit.name);
+            }
         }
         message.success('Area changes saved.');
     };

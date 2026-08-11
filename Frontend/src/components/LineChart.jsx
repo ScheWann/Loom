@@ -9,6 +9,7 @@ const LEGEND_SWATCH_WIDTH = 15; // Colored line in front of the label
 const LEGEND_LABEL_OFFSET = 20; // Where the label starts within an item
 const LEGEND_ITEM_GAP = 28; // Breathing room between two genes
 const LEGEND_ROW_HEIGHT = 16;
+const X_AXIS_OFFSET = 10;
 
 // Measuring the labels beats guessing a fixed column width: gene names vary in length,
 // and a fixed width leaves long names almost touching the next entry.
@@ -59,6 +60,8 @@ export const LineChart = ({
   showLegend = false,
   onMouseMove,
   onMouseLeave,
+  areaColor,
+  areaName,
 }) => {
   const svgRef = useRef();
   const containerRef = useRef();
@@ -131,21 +134,25 @@ export const LineChart = ({
 
     // Use full parent height for SVG
     const svgHeight = dimensions.height;
-    const innerWidth = dimensions.width - margin.left - margin.right;
+
+    // Match UMAP's axis placement in compact mode. Without a Y-axis title, the
+    // larger trajectory-chart left margin is unnecessary.
+    const compact = svgHeight < 200;
+    const horizontalMargin = compact
+      ? { left: 25, right: 10 }
+      : { left: margin.left, right: margin.right };
+    const innerWidth = dimensions.width - horizontalMargin.left - horizontalMargin.right;
 
     // Lay the legend out first: how many rows it needs decides how much bottom margin
     // the plot has to give up.
     const legend = showLegend ? layoutLegend(allDatasets, innerWidth) : { items: [], rows: 0 };
     const legendHeight = legend.rows > 0 ? legend.rows * LEGEND_ROW_HEIGHT + 6 : 0;
 
-    // In a short panel the fixed margins eat the whole plot, so drop the axis titles and
-    // the padding they need rather than squeezing the plot down to nothing.
-    const compact = svgHeight < 240;
-
     const adjustedMargin = {
       ...margin,
+      ...horizontalMargin,
       top: compact ? 12 : margin.top,
-      bottom: (compact ? 24 : margin.bottom) + legendHeight,
+      bottom: (compact ? 30 : margin.bottom) + legendHeight,
     };
     const innerHeight = svgHeight - adjustedMargin.top - adjustedMargin.bottom;
 
@@ -240,17 +247,25 @@ export const LineChart = ({
 
     // Add axes
     g.append("g")
-      .attr("transform", `translate(0,${innerHeight})`)
+      .attr("transform", `translate(0,${innerHeight + X_AXIS_OFFSET})`)
       .call(d3.axisBottom(xScale).ticks(compact ? 5 : 10));
 
     g.append("g").call(d3.axisLeft(yScale).ticks(compact ? 4 : 10));
+
+    // Bridge the small visual gap created by moving the X axis downward.
+    g.append("line")
+      .attr("x1", 0)
+      .attr("x2", 0)
+      .attr("y1", innerHeight)
+      .attr("y2", innerHeight + X_AXIS_OFFSET)
+      .attr("stroke", "currentColor");
 
     // Add labels
     if (!compact) {
       svg
         .append("text")
         .attr("x", adjustedMargin.left + innerWidth / 2)
-        .attr("y", adjustedMargin.top + innerHeight + 35)
+        .attr("y", adjustedMargin.top + innerHeight + 35 + X_AXIS_OFFSET)
         .attr("text-anchor", "middle")
         .attr("font-size", 12)
         .text("Distance along Trajectory[mm]");
@@ -259,7 +274,7 @@ export const LineChart = ({
         .append("text")
         .attr("transform", `rotate(-90)`)
         .attr("x", -svgHeight / 2.5)
-        .attr("y", 25)
+        .attr("y", 18)
         .attr("text-anchor", "middle")
         .attr("font-size", 12)
         .text("Estimated Expression");
@@ -356,7 +371,22 @@ export const LineChart = ({
   }, [allDatasets, dimensions, margin, showErrorBands, errorBandOpacity, showLegend]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {areaColor && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '4px',
+            backgroundColor: areaColor,
+            zIndex: 10,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+          }}
+          title={areaName ? `Region: ${areaName}` : 'Selected Region'}
+        />
+      )}
       <svg ref={svgRef}></svg>
     </div>
   );
