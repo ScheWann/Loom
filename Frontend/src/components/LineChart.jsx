@@ -10,7 +10,7 @@ const LEGEND_LABEL_OFFSET = 20; // Where the label starts within an item
 const LEGEND_ITEM_GAP = 28; // Breathing room between two genes
 const LEGEND_ROW_HEIGHT = 16;
 const X_AXIS_OFFSET = 10;
-const COMPACT_HEIGHT_THRESHOLD = 240;
+const COMPACT_WIDTH_THRESHOLD = 550;
 
 // Measuring the labels beats guessing a fixed column width: gene names vary in length,
 // and a fixed width leaves long names almost touching the next entry.
@@ -138,7 +138,7 @@ export const LineChart = ({
 
     // Match UMAP's axis placement in compact mode. Without a Y-axis title, the
     // larger trajectory-chart left margin is unnecessary.
-    const compact = svgHeight < 200;
+    const compact = dimensions.width <= COMPACT_WIDTH_THRESHOLD;
     const horizontalMargin = compact
       ? { left: 25, right: 10 }
       : { left: margin.left, right: margin.right };

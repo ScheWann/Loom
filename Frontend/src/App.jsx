@@ -79,6 +79,21 @@ function App() {
   const [exampleLoading, setExampleLoading] = useState(false);
   const [pendingExample, setPendingExample] = useState(null); // Snapshot waiting for the viewers to mount
   const [exampleGoAnalysis, setExampleGoAnalysis] = useState({}); // {adata_umap_title: {clusterId: [terms]}}
+  const exampleCompletionPendingRef = useRef(false);
+  const exampleSnapshotAppliedRef = useRef(false);
+  const exampleImagesLoadedRef = useRef(false);
+
+  const finishExampleLoadIfReady = () => {
+    if (
+      exampleCompletionPendingRef.current &&
+      exampleSnapshotAppliedRef.current &&
+      exampleImagesLoadedRef.current
+    ) {
+      exampleCompletionPendingRef.current = false;
+      setExampleLoading(false);
+      message.success("Example data loaded");
+    }
+  };
 
   // Clear all caches on initial page load
   useEffect(() => {
@@ -224,6 +239,8 @@ function App() {
     }
 
     setExampleLoading(true);
+    exampleSnapshotAppliedRef.current = false;
+    exampleImagesLoadedRef.current = false;
 
     try {
       const snapshot = await fetchExampleState();
@@ -259,14 +276,17 @@ function App() {
       setPseudotimeLoadingStates({});
       setClusterColorMappings(snapshot.clusterColorMappings || {});
       setTempSamples(sampleIds);
+      // From this point on, wait for the newly selected sample's TissueView images.
+      exampleCompletionPendingRef.current = true;
+      exampleImagesLoadedRef.current = false;
       setSelectedSamples(sampleIds.map((sample) => ({ id: sample, name: sample })));
 
       // The viewers only mount once selectedSamples is set, so hand over from an effect.
       setPendingExample(snapshot);
     } catch (error) {
+      exampleCompletionPendingRef.current = false;
       message.error(`Failed to load example: ${error.message}`);
       setSampleDataLoading(false);
-    } finally {
       setExampleLoading(false);
     }
   };
@@ -280,13 +300,18 @@ function App() {
     sampleViewerRef.current?.applyExampleSnapshot(pendingExample.sampleViewer);
     trajectoryViewerRef.current?.applyExampleSnapshot(pendingExample.trajectoryViewer);
     pseudotimeGlyphRef.current?.applyExampleSnapshot(pendingExample.pseudotimeGlyph);
+    exampleSnapshotAppliedRef.current = true;
     setPendingExample(null);
-    message.success("Example data loaded");
+    finishExampleLoadIfReady();
   }, [pendingExample, selectedSamples]);
 
   // Callback to be called when all images are loaded
   const onImagesLoaded = () => {
     setSampleDataLoading(false);
+    if (exampleCompletionPendingRef.current) {
+      exampleImagesLoadedRef.current = true;
+      finishExampleLoadIfReady();
+    }
   };
 
   const handleUploadSTData = async (values) => {
@@ -555,7 +580,6 @@ function App() {
                 color="purple"
                 variant="outlined"
                 onClick={loadExample}
-                loading={exampleLoading}
                 title="Load a pre-computed example: sample, ROI, UMAP, pseudotime and spatial trajectory"
               >
                 Example
