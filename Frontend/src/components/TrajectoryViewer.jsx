@@ -20,8 +20,6 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
     const [trajectoriesLoading, setTrajectoriesLoading] = useState(false);
     const [genesLoading, setGenesLoading] = useState(false);
     const containerRef = useRef();
-    const chartContainerRef = useRef();
-    const [chartContainerHeight, setChartContainerHeight] = useState(300);
 
     // Track latest cascade selections to prevent stale async responses from polluting options.
     const selectedSampleRef = useRef(null);
@@ -124,34 +122,6 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         },
         clearExampleSelection
     }), [selectedSample, selectedRegion]);
-
-    // Track chart container height dynamically
-    useEffect(() => {
-        const updateChartHeight = () => {
-            if (chartContainerRef.current) {
-                const rect = chartContainerRef.current.getBoundingClientRect();
-                const newHeight = Math.max(rect.height, 200); // Minimum height of 200px
-                setChartContainerHeight(newHeight);
-            }
-        };
-
-        // Use a slight delay to avoid feedback loops
-        const timeoutId = setTimeout(updateChartHeight, 100);
-        
-        const resizeObserver = new ResizeObserver(() => {
-            clearTimeout(timeoutId);
-            setTimeout(updateChartHeight, 100);
-        });
-        
-        if (chartContainerRef.current) {
-            resizeObserver.observe(chartContainerRef.current);
-        }
-
-        return () => {
-            clearTimeout(timeoutId);
-            resizeObserver.disconnect();
-        };
-    }, []);
 
     // Use passed samples and update selected sample when sampleId changes
     useEffect(() => {
@@ -434,20 +404,6 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
         }
     });
 
-    // Use dynamic chart height based on available space
-    const chartHeight = chartContainerHeight;
-    
-    // Calculate individual chart height based on number of charts
-    const getIndividualChartHeight = () => {
-        if (trajectoryDataSets.length === 0) return chartHeight;
-        const padding = 4; // Container padding
-        const gap = 0; // Gap between charts
-        const totalGaps = (trajectoryDataSets.length - 1) * gap;
-        const availableHeight = chartHeight - (padding * 2) - totalGaps;
-        const heightPerChart = Math.max(availableHeight / trajectoryDataSets.length, 200); // Minimum 200px per chart
-        return heightPerChart;
-    };
-
     // Handle mouse movement over trajectory chart with throttling
     const handleTrajectoryMouseMove = useCallback((normalizedPosition, xValue, trajectoryInfo = null) => {
         if (!onTrajectoryGuidelineChange || !selectedSample) return;
@@ -695,7 +651,6 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
 
             {/* Charts Container */}
             <div
-                ref={chartContainerRef}
                 style={{
                     flex: "1 1 0",
                     minHeight: 0,
@@ -741,10 +696,10 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                         style={{
                             width: "100%",
                             height: "100%",
-                            overflowY: "auto",
+                            overflow: "hidden",
                             display: "flex",
                             flexDirection: "column",
-                            gap: "16px",
+                            gap: "8px",
                             padding: "8px",
                         }}
                     >
@@ -754,21 +709,19 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                             
                             const chartProps = createChartProps(dataset);
                             const isSingleGene = availableGenes.length === 1;
-                            const individualChartHeight = getIndividualChartHeight();
                             
                             return (
                                 <div
                                     key={dataset.id}
                                     style={{
                                         backgroundColor: "#f9f9f9",
-                                        minHeight: `${individualChartHeight}px`,
-                                        height: `${individualChartHeight}px`,
+                                        flex: "1 1 0",
+                                        minHeight: 0,
                                         display: "flex",
                                         flexDirection: "column",
                                         borderRadius: "8px",
                                         overflow: "hidden",
                                         position: "relative",
-                                        flexShrink: 0,
                                     }}
                                 >
                                     {/* Close button positioned absolutely in upper right corner */}

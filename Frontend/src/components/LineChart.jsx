@@ -4,6 +4,47 @@ import { COLOR_BREWER2_PALETTE } from "./Utils";
 
 const COLORS = COLOR_BREWER2_PALETTE;
 
+const LEGEND_FONT = "10px sans-serif";
+const LEGEND_SWATCH_WIDTH = 15; // Colored line in front of the label
+const LEGEND_LABEL_OFFSET = 20; // Where the label starts within an item
+const LEGEND_ITEM_GAP = 28; // Breathing room between two genes
+const LEGEND_ROW_HEIGHT = 16;
+
+// Measuring the labels beats guessing a fixed column width: gene names vary in length,
+// and a fixed width leaves long names almost touching the next entry.
+const measureLabelWidth = (() => {
+  let context;
+  return (text) => {
+    if (!context) {
+      context = document.createElement("canvas").getContext("2d");
+      context.font = LEGEND_FONT;
+    }
+    return context.measureText(text).width;
+  };
+})();
+
+// Place legend entries left to right, wrapping to another row when they run out of width.
+const layoutLegend = (datasets, availableWidth) => {
+  let x = 0;
+  let row = 0;
+
+  const items = datasets.map((dataset, index) => {
+    const label = dataset.label || `Dataset ${index + 1}`;
+    const width = LEGEND_LABEL_OFFSET + measureLabelWidth(label);
+
+    if (x > 0 && x + width > availableWidth) {
+      x = 0;
+      row += 1;
+    }
+
+    const item = { label, x, row };
+    x += width + LEGEND_ITEM_GAP;
+    return item;
+  });
+
+  return { items, rows: datasets.length > 0 ? row + 1 : 0 };
+};
+
 export const LineChart = ({
   data,
   datasets,
@@ -32,8 +73,8 @@ export const LineChart = ({
     const updateDimensions = () => {
       const rect = container.getBoundingClientRect();
       setDimensions({
-        width: Math.max(rect.width, 200),
-        height: Math.max(rect.height, 150),
+        width: Math.max(rect.width, 160),
+        height: Math.max(rect.height, 100),
       });
     };
 
@@ -44,8 +85,8 @@ export const LineChart = ({
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         setDimensions({
-          width: Math.max(width, 200),
-          height: Math.max(height, 150),
+          width: Math.max(width, 160),
+          height: Math.max(height, 100),
         });
       }
     });
@@ -88,19 +129,24 @@ export const LineChart = ({
 
     d3.select(svgRef.current).selectAll("*").remove();
 
-    // Calculate space needed for legend
-    const legendHeight = showLegend ? 25 : 0; // Space for legend
-
     // Use full parent height for SVG
     const svgHeight = dimensions.height;
+    const innerWidth = dimensions.width - margin.left - margin.right;
 
-    // Adjust margin to account for legend space at bottom
+    // Lay the legend out first: how many rows it needs decides how much bottom margin
+    // the plot has to give up.
+    const legend = showLegend ? layoutLegend(allDatasets, innerWidth) : { items: [], rows: 0 };
+    const legendHeight = legend.rows > 0 ? legend.rows * LEGEND_ROW_HEIGHT + 6 : 0;
+
+    // In a short panel the fixed margins eat the whole plot, so drop the axis titles and
+    // the padding they need rather than squeezing the plot down to nothing.
+    const compact = svgHeight < 240;
+
     const adjustedMargin = {
       ...margin,
-      bottom: margin.bottom + legendHeight + (legendHeight > 0 ? 0 : 0) // Add legend space to bottom margin
+      top: compact ? 12 : margin.top,
+      bottom: (compact ? 24 : margin.bottom) + legendHeight,
     };
-
-    const innerWidth = dimensions.width - adjustedMargin.left - adjustedMargin.right;
     const innerHeight = svgHeight - adjustedMargin.top - adjustedMargin.bottom;
 
     if (innerWidth <= 0 || innerHeight <= 0) return;
@@ -195,55 +241,55 @@ export const LineChart = ({
     // Add axes
     g.append("g")
       .attr("transform", `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale));
+      .call(d3.axisBottom(xScale).ticks(compact ? 5 : 10));
 
-    g.append("g").call(d3.axisLeft(yScale));
+    g.append("g").call(d3.axisLeft(yScale).ticks(compact ? 4 : 10));
 
     // Add labels
-    svg
-      .append("text")
-      .attr("x", adjustedMargin.left + innerWidth / 2)
-      .attr("y", adjustedMargin.top + innerHeight + 35)
-      .attr("text-anchor", "middle")
-      .attr("font-size", 12)
-      .text("Distance along Trajectory[mm]");
+    if (!compact) {
+      svg
+        .append("text")
+        .attr("x", adjustedMargin.left + innerWidth / 2)
+        .attr("y", adjustedMargin.top + innerHeight + 35)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 12)
+        .text("Distance along Trajectory[mm]");
 
-    svg
-      .append("text")
-      .attr("transform", `rotate(-90)`)
-      .attr("x", -svgHeight / 2.5)
-      .attr("y", 25)
-      .attr("text-anchor", "middle")
-      .attr("font-size", 12)
-      .text("Estimated Expression");
+      svg
+        .append("text")
+        .attr("transform", `rotate(-90)`)
+        .attr("x", -svgHeight / 2.5)
+        .attr("y", 25)
+        .attr("text-anchor", "middle")
+        .attr("font-size", 12)
+        .text("Estimated Expression");
+    }
 
     // Add legend for datasets
-    if (showLegend) {
-      const legend = svg.append("g")
-        .attr("transform", `translate(${adjustedMargin.left}, ${svgHeight - legendHeight - 5})`);
+    if (legend.items.length > 0) {
+      const legendRoot = svg.append("g")
+        .attr("transform", `translate(${adjustedMargin.left}, ${svgHeight - legendHeight})`);
 
-      const legendSpacing = Math.min(innerWidth / allDatasets.length, 60);
+      legend.items.forEach((item, index) => {
+        const legendGroup = legendRoot.append("g")
+          .attr("transform", `translate(${item.x}, ${item.row * LEGEND_ROW_HEIGHT})`);
 
-      allDatasets.forEach((dataset, index) => {
-        const legendGroup = legend.append("g")
-          .attr("transform", `translate(${index * legendSpacing}, 0)`);
-
-        const datasetColor = dataset.lineColor || colorScale(index);
+        const datasetColor = allDatasets[index].lineColor || colorScale(index);
 
         legendGroup.append("line")
           .attr("x1", 0)
-          .attr("x2", 15)
-          .attr("y1", 10)
-          .attr("y2", 10)
+          .attr("x2", LEGEND_SWATCH_WIDTH)
+          .attr("y1", 8)
+          .attr("y2", 8)
           .attr("stroke", datasetColor)
           .attr("stroke-width", 2);
 
         legendGroup.append("text")
-          .attr("x", 20)
-          .attr("y", 10)
+          .attr("x", LEGEND_LABEL_OFFSET)
+          .attr("y", 8)
           .attr("dy", "0.35em")
           .attr("font-size", 10)
-          .text(dataset.label || `Dataset ${index + 1}`);
+          .text(item.label);
       });
     }
 
