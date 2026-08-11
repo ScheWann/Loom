@@ -980,20 +980,24 @@ export const PseudotimeGlyphComponent = forwardRef(({
                             }}
                         >
                             {!trajectoryData.isPlaceholder && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '4px',
-                                    right: '4px',
-                                    zIndex: 900,
-                                }}>
-                                    <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<CloseOutlined />}
-                                        onClick={() => handleCloseGlyph(glyphKey)}
-                                        aria-label="Close glyph"
-                                    />
-                                </div>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<CloseOutlined />}
+                                    onClick={() => handleCloseGlyph(glyphKey)}
+                                    aria-label="Close pseudotime glyph"
+                                    style={{
+                                        position: 'absolute',
+                                        top: '5px',
+                                        right: '2px',
+                                        zIndex: 10,
+                                        color: '#999',
+                                        width: '20px',
+                                        height: '20px',
+                                        minWidth: '20px',
+                                        padding: 0,
+                                    }}
+                                />
                             )}
                             {trajectoryData.isPlaceholder ? (
                                 <div style={{

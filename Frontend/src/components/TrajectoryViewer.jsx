@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo, useImperativeHandle, forwardRef } from "react";
 import { Select, Button, Row, Col, message, Spin, Empty, Switch } from "antd";
+import { CloseOutlined } from "@ant-design/icons";
 import { LineChart } from "./LineChart";
 
 const { Option } = Select;
@@ -741,23 +742,21 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                                     <Button
                                         type="text"
                                         size="small"
+                                        icon={<CloseOutlined />}
                                         onClick={() => removeTrajectoryDataset(dataset.id)}
+                                        aria-label="Close spatial trajectory chart"
                                         style={{
                                             position: "absolute",
-                                            top: "4px",
-                                            right: "4px",
-                                            padding: "0 4px",
+                                            top: "5px",
+                                            right: "2px",
+                                            zIndex: 10,
+                                            color: "#999",
+                                            width: "20px",
                                             height: "20px",
                                             minWidth: "20px",
-                                            fontSize: "14px",
-                                            color: "#999",
-                                            backgroundColor: "rgba(255, 255, 255, 0.8)",
-                                            borderRadius: "50%",
-                                            zIndex: 10,
+                                            padding: 0,
                                         }}
-                                    >
-                                        ×
-                                    </Button>
+                                    />
                                     
                                     {/* Chart content */}
                                     <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
