@@ -546,7 +546,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                 justifyContent: "space-between",
                 alignItems: "center",
                 flexShrink: 0,
-                padding: "6px 0 2px 8px",
+                padding: "3px 0 2px 8px",
                 flexWrap: "wrap",
                 gap: "8px"
             }}>
@@ -554,7 +554,8 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "flex-end",
-                    gap: "8px",
+                    columnGap: "3px",
+                    rowGap: "3px",
                     flexWrap: "wrap",
                     flex: 1
                 }}>
