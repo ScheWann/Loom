@@ -77,6 +77,7 @@ function App() {
   // Fixed example state
   const [exampleLoading, setExampleLoading] = useState(false);
   const [pendingExample, setPendingExample] = useState(null); // Snapshot waiting for the viewers to mount
+  const [exampleGoAnalysis, setExampleGoAnalysis] = useState({}); // {adata_umap_title: {clusterId: [terms]}}
 
   // Clear all caches on initial page load
   useEffect(() => {
@@ -185,6 +186,7 @@ function App() {
       try {
         setSampleDataLoading(true);
         // A manual confirm hands the trajectory selectors back to the normal cascade.
+        setExampleGoAnalysis({});
         trajectoryViewerRef.current?.clearExampleSelection?.();
         await clearCache();
         const cacheResponse = await fetch("/api/load_adata_cache", {
@@ -250,6 +252,7 @@ function App() {
         setCellTypeColors(snapshot.cellTypeColors);
       }
 
+      setExampleGoAnalysis(snapshot.goAnalysis || {});
       setUmapDataSets(snapshot.umapDataSets || []);
       setPseudotimeDataSets(snapshot.pseudotimeDataSets || {});
       setPseudotimeLoadingStates({});
@@ -640,7 +643,7 @@ function App() {
                   </div>
                 )}
                 <Splitter lazy style={{ width: "100%", height: "100%" }}>
-                  <Splitter.Panel defaultSize="60%" min="50%" max="60%">
+                  <Splitter.Panel defaultSize="60%" min="50%" max="80%">
                     <SampleViewer
                       ref={sampleViewerRef}
                       selectedSamples={selectedSamples}
@@ -667,7 +670,7 @@ function App() {
                       onAreaDeleted={handleAreaDeleted}
                     />
                   </Splitter.Panel>
-                  <Splitter.Panel defaultSize="40%" min="40%" max="50%">
+                  <Splitter.Panel defaultSize="40%" min="20%" max="50%">
                     <Splitter lazy layout="vertical">
                       <Splitter.Panel
                         defaultSize="33%"
@@ -809,6 +812,7 @@ function App() {
                                       isUpdating={dataset.isUpdating || false}
                                       areaColor={dataset.areaColor}
                                       areaName={dataset.areaName}
+                                      goAnalysis={exampleGoAnalysis[dataset.adata_umap_title]}
                                     />
                                   </div>
                                 );

@@ -34,6 +34,7 @@ export const ScatterplotUmap = ({
   onUmapLoadingStart,
   areaColor,
   areaName,
+  goAnalysis,
 }) => {
   const containerRef = useRef();
   const svgRef = useRef();
@@ -64,6 +65,16 @@ export const ScatterplotUmap = ({
     setGOAnalysisData(null);
 
     const cluster_id = cluster.split(" ")[1];
+
+    // The example ships its GO results, since the backend cache it would otherwise be
+    // computed from does not exist for a replayed session.
+    const storedResult = goAnalysis?.[cluster_id];
+    if (storedResult) {
+      setGOAnalysisData(storedResult);
+      setGOAnalysisLoading(false);
+      return;
+    }
+
     fetch("/api/get_go_analysis", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

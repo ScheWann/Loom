@@ -28,7 +28,8 @@ export const UmapComponent = ({
   onUmapLoadingStart,
   isUpdating = false,
   areaColor,
-  areaName
+  areaName,
+  goAnalysis
 }) => {
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -79,6 +80,7 @@ export const UmapComponent = ({
           onUmapLoadingStart={onUmapLoadingStart}
           areaColor={areaColor}
           areaName={areaName}
+          goAnalysis={goAnalysis}
         />
       ) : null}
     </div>
