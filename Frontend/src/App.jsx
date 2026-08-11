@@ -281,7 +281,7 @@ function App() {
     trajectoryViewerRef.current?.applyExampleSnapshot(pendingExample.trajectoryViewer);
     pseudotimeGlyphRef.current?.applyExampleSnapshot(pendingExample.pseudotimeGlyph);
     setPendingExample(null);
-    message.success("Example loaded");
+    message.success("Example data loaded");
   }, [pendingExample, selectedSamples]);
 
   // Callback to be called when all images are loaded

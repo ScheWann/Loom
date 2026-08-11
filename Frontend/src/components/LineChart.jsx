@@ -10,6 +10,7 @@ const LEGEND_LABEL_OFFSET = 20; // Where the label starts within an item
 const LEGEND_ITEM_GAP = 28; // Breathing room between two genes
 const LEGEND_ROW_HEIGHT = 16;
 const X_AXIS_OFFSET = 10;
+const COMPACT_HEIGHT_THRESHOLD = 240;
 
 // Measuring the labels beats guessing a fixed column width: gene names vary in length,
 // and a fixed width leaves long names almost touching the next entry.
