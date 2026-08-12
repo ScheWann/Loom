@@ -729,7 +729,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                                 <div
                                     key={dataset.id}
                                     style={{
-                                        backgroundColor: "#f9f9f9",
+                                        backgroundColor: "var(--app-surface-subtle)",
                                         flex: "1 1 0",
                                         minHeight: 0,
                                         display: "flex",
@@ -751,7 +751,7 @@ export const TrajectoryViewer = forwardRef(({ sampleId, samples, kosaraDisplayEn
                                             top: "5px",
                                             right: "2px",
                                             zIndex: 10,
-                                            color: "#999",
+                                            color: "var(--app-text-muted)",
                                             width: "20px",
                                             height: "20px",
                                             minWidth: "20px",

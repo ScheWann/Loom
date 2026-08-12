@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { ThemeProvider } from './theme';
 
 const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
 const apiPrefix = `${baseUrl || ''}/api`;
@@ -23,5 +24,7 @@ window.fetch = (input, init) => {
 };
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-    <App />
+    <ThemeProvider>
+        <App />
+    </ThemeProvider>
 );

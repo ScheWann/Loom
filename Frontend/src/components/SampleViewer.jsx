@@ -1004,7 +1004,7 @@ export const SampleViewer = forwardRef(({
                         decoding="async"
                     />
                 ) : (
-                    <div style={{ width: '100%', height: '100%', backgroundColor: '#d9d9d9' }} />
+                    <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--app-chart-placeholder)' }} />
                 )}
                 <div
                     style={{
@@ -4382,10 +4382,10 @@ export const SampleViewer = forwardRef(({
                         left: hoveredCell.x + 12,
                         top: hoveredCell.y - 40,
                         pointerEvents: 'none',
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        backgroundColor: 'var(--app-overlay)',
                         padding: 8,
                         borderRadius: 4,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        boxShadow: '0 2px 8px var(--app-shadow)',
                         transform: 'none',
                         whiteSpace: 'nowrap',
                         willChange: 'left, top',
@@ -4430,7 +4430,7 @@ export const SampleViewer = forwardRef(({
                     <Collapse
                         items={collapseItems}
                         defaultActiveKey={[selectedSamples[0]?.id]}
-                        style={{ background: '#ffffff', width: 300, opacity: 0.9 }}
+                        style={{ background: 'var(--app-surface)', width: 300, opacity: 0.9 }}
                     />
                 </div>
 
@@ -4442,7 +4442,7 @@ export const SampleViewer = forwardRef(({
                             size="big"
                             onClick={resetView}
                             style={{
-                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                boxShadow: '0 2px 8px var(--app-shadow)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -4458,7 +4458,7 @@ export const SampleViewer = forwardRef(({
                             type={minimapVisible ? "primary" : "default"}
                             onClick={toggleMinimapVisible}
                             style={{
-                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                boxShadow: '0 2px 8px var(--app-shadow)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -4474,7 +4474,7 @@ export const SampleViewer = forwardRef(({
                             type={isDrawing ? "primary" : "default"}
                             onClick={toggleDrawingMode}
                             style={{
-                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                boxShadow: '0 2px 8px var(--app-shadow)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -4491,13 +4491,13 @@ export const SampleViewer = forwardRef(({
                         visibility: isDrawing ? 'visible' : 'hidden',
                         transform: isDrawing ? 'translateY(0)' : 'translateY(-10px)',
                         transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, transform 0.3s ease-in-out',
-                        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                        color: '#000000',
+                        backgroundColor: 'var(--app-overlay-soft)',
+                        color: 'var(--app-text)',
                         padding: '8px 12px',
                         borderRadius: 6,
                         fontSize: '12px',
                         lineHeight: '1.4',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                        boxShadow: '0 2px 8px var(--app-shadow)',
                         minWidth: '200px',
                         textAlign: 'left',
                         pointerEvents: isDrawing ? 'auto' : 'none'
@@ -4505,7 +4505,7 @@ export const SampleViewer = forwardRef(({
                         <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Drawing Shortcuts:</div>
                         <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <kbd style={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                backgroundColor: 'var(--app-scrim)',
                                 padding: '2px 4px',
                                 borderRadius: 3,
                                 fontSize: '11px',
@@ -4514,7 +4514,7 @@ export const SampleViewer = forwardRef(({
                         </div>
                         <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <kbd style={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                backgroundColor: 'var(--app-scrim)',
                                 padding: '2px 4px',
                                 borderRadius: 3,
                                 fontSize: '11px'
@@ -4523,7 +4523,7 @@ export const SampleViewer = forwardRef(({
                         </div>
                         <div style={{ marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <kbd style={{
-                                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                                backgroundColor: 'var(--app-scrim)',
                                 padding: '2px 4px',
                                 borderRadius: 3,
                                 fontSize: '11px'
@@ -4558,10 +4558,10 @@ export const SampleViewer = forwardRef(({
                                 left: getTempAreaCompleteTooltipPosition().left,
                                 top: getTempAreaCompleteTooltipPosition().top,
                                 zIndex: 1000,
-                                background: '#ffffff',
-                                border: '1px solid #d9d9d9',
+                                background: 'var(--app-surface)',
+                                border: '1px solid var(--app-border-strong)',
                                 borderRadius: 8,
-                                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
+                                boxShadow: '0 6px 16px var(--app-shadow)',
                                 padding: 12,
                                 minWidth: 240,
                                 maxWidth: 280,
@@ -4581,10 +4581,10 @@ export const SampleViewer = forwardRef(({
                                 justifyContent: 'center'
                             }}
                                 onClick={handleAreaTooltipCancel}
-                                onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--app-surface-hover)'}
                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                             >
-                                <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
+                                <CloseOutlined style={{ fontSize: 12, color: 'var(--app-text-secondary)' }} />
                             </div>
 
                             {/* Title */}
@@ -4592,7 +4592,7 @@ export const SampleViewer = forwardRef(({
                                 fontWeight: 'bold',
                                 marginBottom: 5,
                                 fontSize: 14,
-                                color: '#262626',
+                                color: 'var(--app-text-strong)',
                                 paddingRight: 20,
                                 textAlign: 'left'
                             }}>
@@ -4606,7 +4606,7 @@ export const SampleViewer = forwardRef(({
                                     marginBottom: 6,
                                     fontSize: 12,
                                     fontWeight: 500,
-                                    color: '#595959',
+                                    color: 'var(--app-text-secondary)',
                                     textAlign: 'left'
                                 }}>
                                     Area Name:
@@ -4626,7 +4626,7 @@ export const SampleViewer = forwardRef(({
                                     <label style={{
                                         fontSize: 12,
                                         fontWeight: 500,
-                                        color: '#595959',
+                                        color: 'var(--app-text-secondary)',
                                         minWidth: 'fit-content'
                                     }}>
                                         Area Color:
@@ -4664,10 +4664,10 @@ export const SampleViewer = forwardRef(({
                             width: 296,
                             height: 150,
                             zIndex: 15,
-                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                            border: '2px solid #d9d9d9',
+                            backgroundColor: 'var(--app-overlay)',
+                            border: '2px solid var(--app-border-strong)',
                             borderRadius: 8,
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                            boxShadow: '0 4px 12px var(--app-shadow)',
                             overflow: 'hidden',
                             cursor: 'pointer',
                             opacity: minimapVisible ? 1 : 0,
@@ -4683,7 +4683,7 @@ export const SampleViewer = forwardRef(({
                             width: '100%',
                             height: '100%',
                             position: 'relative',
-                            backgroundColor: '#f0f0f0'
+                            backgroundColor: 'var(--app-surface-muted)'
                         }}>
                             {minimapTilesContent}
                         </div>
@@ -4723,24 +4723,24 @@ export const SampleViewer = forwardRef(({
                                 right: 4,
                                 width: 18,
                                 height: 18,
-                                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                                border: '1px solid #d9d9d9',
+                                backgroundColor: 'var(--app-overlay)',
+                                border: '1px solid var(--app-border-strong)',
                                 borderRadius: 3,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 cursor: 'pointer',
                                 fontSize: 12,
-                                color: '#666'
+                                color: 'var(--app-text-secondary)'
                             }}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 toggleMinimapVisible();
                             }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(245, 245, 245, 0.9)'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--app-surface-hover)'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--app-overlay)'}
                         >
-                            <CloseOutlined style={{ fontSize: 8, color: '#666' }} />
+                            <CloseOutlined style={{ fontSize: 8, color: 'var(--app-text-secondary)' }} />
                         </div>
                     </div>
                 )}
@@ -4756,10 +4756,10 @@ export const SampleViewer = forwardRef(({
                             width: 300,
                             height: 300,
                             zIndex: 15,
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            backgroundColor: 'var(--app-overlay)',
                             border: '2px solid #1890ff',
                             borderRadius: 8,
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                            boxShadow: '0 4px 12px var(--app-shadow)',
                             overflow: 'hidden',
                             opacity: magnifierVisible ? 1 : 0,
                             transition: 'opacity 0.2s ease-in-out',
@@ -4769,18 +4769,18 @@ export const SampleViewer = forwardRef(({
                         {/* Header */}
                         <div style={{
                             padding: '6px 12px',
-                            borderBottom: '1px solid #e8e8e8',
+                            borderBottom: '1px solid var(--app-border)',
                             fontSize: '11px',
                             fontWeight: 'bold',
-                            color: '#262626',
-                            backgroundColor: '#f0f8ff',
+                            color: 'var(--app-text-strong)',
+                            backgroundColor: 'var(--app-surface-accent)',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             pointerEvents: 'auto' // header still interactive if needed
                         }}>
                             <span>Magnifier - {magnifierData?.sampleId || ''}</span>
-                            <span style={{ fontSize: '9px', color: '#666' }}>
+                            <span style={{ fontSize: '9px', color: 'var(--app-text-secondary)' }}>
                                 Hold Space
                             </span>
                         </div>
@@ -4791,7 +4791,7 @@ export const SampleViewer = forwardRef(({
                             width: '100%',
                             height: 280,
                             overflow: 'hidden',
-                            backgroundColor: '#ffffff',
+                            backgroundColor: 'var(--app-surface)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -4823,7 +4823,7 @@ export const SampleViewer = forwardRef(({
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    background: 'rgba(255,255,255,0.8)',
+                                    background: 'var(--app-overlay-soft)',
                                     zIndex: 9999,
                                     pointerEvents: 'none'
                                 }}>
@@ -4916,10 +4916,10 @@ export const SampleViewer = forwardRef(({
                                 left: editPopupPosition.x,
                                 top: editPopupPosition.y,
                                 zIndex: 1000,
-                                background: '#ffffff',
-                                border: '1px solid #d9d9d9',
+                                background: 'var(--app-surface)',
+                                border: '1px solid var(--app-border-strong)',
                                 borderRadius: 8,
-                                boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
+                                boxShadow: '0 6px 16px var(--app-shadow)',
                                 padding: 12,
                                 width: 280,
                                 maxHeight: 'calc(100vh - 20px)',
@@ -4940,10 +4940,10 @@ export const SampleViewer = forwardRef(({
                                 justifyContent: 'center'
                             }}
                                 onClick={handleAreaEditCancel}
-                                onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--app-surface-hover)'}
                                 onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                             >
-                                <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
+                                <CloseOutlined style={{ fontSize: 12, color: 'var(--app-text-secondary)' }} />
                             </div>
 
                             {/* Title */}
@@ -4951,7 +4951,7 @@ export const SampleViewer = forwardRef(({
                                 fontWeight: 'bold',
                                 marginBottom: 5,
                                 fontSize: 14,
-                                color: isTrajectoryMode ? '#1890ff' : '#262626',
+                                color: isTrajectoryMode ? '#1890ff' : 'var(--app-text-strong)',
                                 paddingRight: 20,
                                 textAlign: 'left'
                             }}>
@@ -4965,7 +4965,7 @@ export const SampleViewer = forwardRef(({
                                     marginBottom: 6,
                                     fontSize: 12,
                                     fontWeight: 500,
-                                    color: '#595959',
+                                    color: 'var(--app-text-secondary)',
                                     textAlign: 'left'
                                 }}>
                                     Area Name:
@@ -4987,7 +4987,7 @@ export const SampleViewer = forwardRef(({
                                         fontWeight: 500,
                                         minWidth: '70px',
                                         textAlign: 'left',
-                                        color: '#595959',
+                                        color: 'var(--app-text-secondary)',
                                     }}>
                                         Area Color:
                                     </label>
@@ -5015,12 +5015,12 @@ export const SampleViewer = forwardRef(({
                             </div>
 
                             {/* Neighbors Input */}
-                            <div style={{ marginBottom: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
+                            <div style={{ marginBottom: 8, borderTop: '1px solid var(--app-border)', paddingTop: 8 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <label style={{
                                         fontSize: 12,
                                         fontWeight: 500,
-                                        color: '#595959',
+                                        color: 'var(--app-text-secondary)',
                                         minWidth: '70px',
                                         textAlign: 'left'
                                     }}>
@@ -5050,7 +5050,7 @@ export const SampleViewer = forwardRef(({
                                     <label style={{
                                         fontSize: 12,
                                         fontWeight: 500,
-                                        color: '#595959',
+                                        color: 'var(--app-text-secondary)',
                                         minWidth: '70px',
                                         textAlign: 'left'
                                     }}>
@@ -5081,7 +5081,7 @@ export const SampleViewer = forwardRef(({
                                     <label style={{
                                         fontSize: 12,
                                         fontWeight: 500,
-                                        color: '#595959',
+                                        color: 'var(--app-text-secondary)',
                                         minWidth: '70px',
                                         textAlign: 'left'
                                     }}>
@@ -5129,13 +5129,13 @@ export const SampleViewer = forwardRef(({
                             </Button>
 
                             {/* Trajectory Controls */}
-                            <div style={{ marginBottom: 5, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
+                            <div style={{ marginBottom: 5, borderTop: '1px solid var(--app-border)', paddingTop: 8 }}>
                                 <label style={{
                                     display: 'block',
                                     marginBottom: 6,
                                     fontSize: 12,
                                     fontWeight: 500,
-                                    color: '#595959',
+                                    color: 'var(--app-text-secondary)',
                                     textAlign: 'left'
                                 }}>
                                     Trajectory Controls:
@@ -5162,7 +5162,7 @@ export const SampleViewer = forwardRef(({
                                             marginBottom: 4,
                                             fontSize: 12,
                                             fontWeight: 500,
-                                            color: '#595959',
+                                            color: 'var(--app-text-secondary)',
                                             textAlign: 'left'
                                         }}>
                                             Trajectory Name:
@@ -5180,12 +5180,12 @@ export const SampleViewer = forwardRef(({
                                 {/* Instructions when in trajectory mode */}
                                 {isTrajectoryMode && (
                                     <div style={{
-                                        backgroundColor: '#f0f8ff',
+                                        backgroundColor: 'var(--app-surface-accent)',
                                         padding: 8,
                                         borderRadius: 4,
                                         marginBottom: 8,
                                         fontSize: 11,
-                                        color: '#666'
+                                        color: 'var(--app-text-secondary)'
                                     }}>
                                         Click within the area to set <strong>start and end points</strong> for the trajectory arrow.
                                     </div>
@@ -5198,7 +5198,7 @@ export const SampleViewer = forwardRef(({
                                         alignItems: 'center',
                                         gap: 3,
                                         fontSize: 12,
-                                        color: '#595959',
+                                        color: 'var(--app-text-secondary)',
                                         opacity: (trajectoryStart && trajectoryEnd) ? 1 : 0.5
                                     }}>
                                         <span style={{ fontWeight: 500 }}>Arrow Width:</span> {arrowWidth}px
@@ -5231,13 +5231,13 @@ export const SampleViewer = forwardRef(({
 
                                 {/* Existing Trajectories List */}
                                 {/* {selectedAreaForEdit?.trajectories && selectedAreaForEdit.trajectories.length > 0 && (
-                                    <div style={{ marginTop: 8, borderTop: '1px solid #e8e8e8', paddingTop: 8 }}>
+                                    <div style={{ marginTop: 8, borderTop: '1px solid var(--app-border)', paddingTop: 8 }}>
                                         <label style={{
                                             display: 'block',
                                             marginBottom: 6,
                                             fontSize: 12,
                                             fontWeight: 500,
-                                            color: '#595959',
+                                            color: 'var(--app-text-secondary)',
                                             textAlign: 'left'
                                         }}>
                                             Existing Trajectories:
@@ -5250,12 +5250,12 @@ export const SampleViewer = forwardRef(({
                                                         fontSize: 11,
                                                         padding: '4px 8px',
                                                         marginBottom: 4,
-                                                        backgroundColor: '#f9f9f9',
+                                                        backgroundColor: 'var(--app-surface-subtle)',
                                                         borderRadius: 4,
-                                                        border: '1px solid #e8e8e8'
+                                                        border: '1px solid var(--app-border)'
                                                     }}
                                                 >
-                                                    <div style={{ fontWeight: 500, color: '#262626' }}>
+                                                    <div style={{ fontWeight: 500, color: 'var(--app-text-strong)' }}>
                                                         {trajectory.name}
                                                     </div>
                                                 </div>
@@ -5290,7 +5290,7 @@ export const SampleViewer = forwardRef(({
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                    backgroundColor: 'var(--app-overlay-faint)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -5299,7 +5299,7 @@ export const SampleViewer = forwardRef(({
                     gap: '16px'
                 }}>
                     <Spin size="large" />
-                    <div style={{ fontSize: '16px', color: '#666' }}>
+                    <div style={{ fontSize: '16px', color: 'var(--app-text-secondary)' }}>
                         {selectedGenes.length === 1 ? 'Loading gene expression...' : 'Loading Kosara visualization...'}
                     </div>
                 </div>

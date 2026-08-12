@@ -1,14 +1,15 @@
-import { useEffect, useState, useRef } from "react";
-import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload, ConfigProvider, Empty } from "antd";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { Select, Spin, message, Button, Splitter, Modal, Form, Input, Upload, ConfigProvider, Empty, Switch, theme } from "antd";
 import "./App.css";
 import { SampleViewer } from "./components/SampleViewer";
-import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined } from "@ant-design/icons";
+import { PlusOutlined, InboxOutlined, PaperClipOutlined, CloseOutlined, SunOutlined, MoonOutlined } from "@ant-design/icons";
 import "@ant-design/v5-patch-for-react-19";
 import { UmapComponent } from "./components/UmapComponent";
 import { TrajectoryViewer } from "./components/TrajectoryViewer";
 import { PseudotimeGlyphComponent } from "./components/PseudotimeGlyphComponent";
 import { COLOR_PALETTE } from "./components/Utils";
 import { fetchExampleState } from "./components/ExampleState";
+import { useAppTheme } from "./theme";
 
 // Custom theme configuration
 const customTheme = {
@@ -20,6 +21,26 @@ const customTheme = {
 };
 
 function App() {
+  // Dark mode state
+  const { darkMode, setDarkMode } = useAppTheme();
+  const antdTheme = useMemo(
+    () => ({
+      ...customTheme,
+      algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    }),
+    [darkMode]
+  );
+
+  // antd's static APIs (message.*) render outside the React tree, so they don't
+  // see the ConfigProvider below and need the theme handed to them separately.
+  useEffect(() => {
+    ConfigProvider.config({
+      holderRender: (children) => (
+        <ConfigProvider theme={antdTheme}>{children}</ConfigProvider>
+      ),
+    });
+  }, [antdTheme]);
+
   // Sample selector state
   const [selectOptions, setSelectOptions] = useState([]); // Available sample Option(e.g. [{value: 'skin_TXK6Z4X_A1', label: 'skin_TXK6Z4X_A1'}, ...])
   const [selectedSamples, setSelectedSamples] = useState([]); // Confirmed sample to be displayed(e.g. [{id: 'sample_id', name: 'sample_id'}, ...])
@@ -545,13 +566,19 @@ function App() {
   };
 
   return (
-    <ConfigProvider theme={customTheme}>
+    <ConfigProvider theme={antdTheme}>
       <div className="App">
         <div className="main">
           {/* top bar */}
           <div className="topBar">
             <div className="appTitle">
-              <img src={`${import.meta.env.BASE_URL}Loom_name.png`} alt="Loom" className="appLogo" />
+              {/* The light logo is a white-background image, so dark mode uses a
+                  transparent variant with a white wordmark instead. */}
+              <img
+                src={`${import.meta.env.BASE_URL}${darkMode ? "Loom_name_dark.png" : "Loom_name.png"}`}
+                alt="Loom"
+                className="appLogo"
+              />
             </div>
             {/* select samples */}
             <div className="selectSamples">
@@ -584,6 +611,18 @@ function App() {
               >
                 Example
               </Button>
+            </div>
+            {/* dark mode toggle */}
+            <div className="themeToggle">
+              <Switch
+                size="small"
+                checked={darkMode}
+                onChange={(checked) => setDarkMode(checked)}
+                checkedChildren={<MoonOutlined />}
+                unCheckedChildren={<SunOutlined />}
+                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label="Toggle dark mode"
+              />
             </div>
           </div>
 
@@ -716,7 +755,7 @@ function App() {
                         defaultSize="33%"
                         min="20%"
                         max="45%"
-                        style={{ borderBottom: "1px solid #e8e8e8" }}
+                        style={{ borderBottom: "1px solid var(--app-border)" }}
                       >
                         <div style={{ height: "100%", overflow: "auto" }}>
                           {selectedSamples.length > 0 || sampleDataLoading ? (
@@ -738,7 +777,7 @@ function App() {
                               justifyContent: "center",
                               alignItems: "center",
                               height: "100%",
-                              color: "#999"
+                              color: "var(--app-text-muted)"
                             }}>
                               Select a sample to view trajectory data
                             </div>
@@ -750,7 +789,7 @@ function App() {
                         defaultSize="33%"
                         min="20%"
                         max="45%"
-                        style={{ borderBottom: "1px solid #e8e8e8" }}
+                        style={{ borderBottom: "1px solid var(--app-border)" }}
                       >
                         <div
                           style={{
@@ -790,9 +829,9 @@ function App() {
                                 // Calculate dimensions based on total count
                                 const totalCount = umapDataSets.length;
                                 let containerStyle = {
-                                  border: "1px solid #e8e8e8",
+                                  border: "1px solid var(--app-border)",
                                   borderRadius: "4px",
-                                  backgroundColor: "#fafafa",
+                                  backgroundColor: "var(--app-surface-subtle)",
                                   position: "relative",
                                   overflow: "hidden",
                                   height: "100%",
@@ -817,7 +856,7 @@ function App() {
                                         top: "5px",
                                         right: "2px",
                                         zIndex: 10,
-                                        color: "#999",
+                                        color: "var(--app-text-muted)",
                                         width: "20px",
                                         height: "20px",
                                         minWidth: "20px",
@@ -888,7 +927,7 @@ function App() {
                   alignItems: "center",
                   height: "100%",
                   width: "100%",
-                  color: "#999",
+                  color: "var(--app-text-muted)",
                 }}
               >
                 Please select at least one sample to view

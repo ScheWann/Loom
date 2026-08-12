@@ -230,9 +230,9 @@ export const GOAnalysisWindow = ({
                     .append("div")
                     .attr("class", "mini-tooltip")
                     .style("position", "absolute")
-                    .style("background", "rgba(255, 255, 255, 0.9)")
-                    .style("box-shadow", "0 4px 12px rgba(0, 0, 0, 0.15)")
-                    .style("color", "black")
+                    .style("background", "var(--app-overlay)")
+                    .style("box-shadow", "0 4px 12px var(--app-shadow)")
+                    .style("color", "var(--app-text)")
                     .style("padding", "8px 12px")
                     .style("border-radius", "6px")
                     .style("font-size", "12px")
@@ -260,11 +260,13 @@ export const GOAnalysisWindow = ({
                 d3.selectAll(".mini-tooltip").remove();
             });
 
-        // Add Y axis
+        // Add Y axis (colors come from CSS variables so they follow the theme)
         g.append("g")
+            .style("color", "var(--app-chart-axis)")
             .call(d3.axisLeft(yScale))
             .selectAll("text")
             .style("font-size", "10px")
+            .style("fill", "var(--app-chart-axis)")
     }, [data, loading, visible]);
 
     if (!visible) return null;
@@ -278,10 +280,10 @@ export const GOAnalysisWindow = ({
                 top: `${tooltipPosition.y}px`,
                 width: "500px",
                 maxHeight: "400px",
-                background: "white",
-                border: "1px solid #d9d9d9",
+                background: "var(--app-surface)",
+                border: "1px solid var(--app-border-strong)",
                 borderRadius: "8px",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                boxShadow: "0 4px 12px var(--app-shadow)",
                 zIndex: 1000,
                 overflow: "hidden",
             }}
@@ -290,8 +292,8 @@ export const GOAnalysisWindow = ({
             <div
                 style={{
                     padding: "5px 10px 5px 10px",
-                    borderBottom: "1px solid #f0f0f0",
-                    background: "#fafafa",
+                    borderBottom: "1px solid var(--app-border)",
+                    background: "var(--app-surface-subtle)",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -301,13 +303,13 @@ export const GOAnalysisWindow = ({
                     style={{ 
                         fontSize: "14px", 
                         fontWeight: "600", 
-                        color: "#262626"
+                        color: "var(--app-text-strong)"
                     }}
                 >
                     {title}
                 </div>
                 <CloseOutlined
-                    style={{ cursor: "pointer", color: "#8c8c8c", fontSize: "12px" }}
+                    style={{ cursor: "pointer", color: "var(--app-text-muted)", fontSize: "12px" }}
                     onClick={() => setVisible(false)}
                 />
             </div>
@@ -358,7 +360,7 @@ export const GOAnalysisWindow = ({
                             }}
                         >
                             <Spin size="large" />
-                            <div style={{ fontSize: "13px", color: "#666" }}>
+                            <div style={{ fontSize: "13px", color: "var(--app-text-secondary)" }}>
                                 Loading GO Analysis...
                             </div>
                         </div>

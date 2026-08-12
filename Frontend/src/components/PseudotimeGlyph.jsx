@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox, Tooltip } from 'antd';
 import { COLOR_BREWER2_PALETTE, COLOR_BREWER2_PALETTE_GENE, COLOR_BREWER2_PALETTE_EXTRA } from "./Utils";
+import { useAppTheme } from "../theme";
 
 const COLORS = COLOR_BREWER2_PALETTE;
 const GENE_COLORS = COLOR_BREWER2_PALETTE_GENE;
@@ -20,6 +21,7 @@ export const PseudotimeGlyph = ({
     areaColor,
     areaName,
 }) => {
+    const { colors } = useAppTheme();
     const containerRef = useRef();
     const svgRef = useRef(null);
     const [dimensions, setDimensions] = useState({ width: 300, height: 300 });
@@ -120,7 +122,7 @@ export const PseudotimeGlyph = ({
         if (hasValidData && dimensions.width > 0 && dimensions.height > 0) {
             createGlyph(pseudotimeData);
         }
-    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors, selectedTrajectory, selectedGeneData]);
+    }, [pseudotimeData, dimensions, geneExpressionData, clusterColors, selectedTrajectory, selectedGeneData, colors]);
 
     // Cleanup tooltip on unmount
     useEffect(() => {
@@ -200,16 +202,16 @@ export const PseudotimeGlyph = ({
             .attr("class", `pseudotime-tooltip-${componentId}`)
             .style("position", "fixed")
             .style("visibility", "hidden")
-            .style("background", "rgba(0, 0, 0, 0.9)")
-            .style("color", "white")
+            .style("background", colors.tooltipBg)
+            .style("color", colors.tooltipText)
             .style("padding", "10px")
             .style("border-radius", "6px")
             .style("font-size", "12px")
             .style("pointer-events", "none")
             .style("z-index", "9999")
             .style("max-width", "300px")
-            .style("box-shadow", "0 4px 8px rgba(0,0,0,0.3)")
-            .style("border", "1px solid rgba(255,255,255,0.2)");
+            .style("box-shadow", `0 4px 8px ${colors.shadow}`)
+            .style("border", `1px solid ${colors.tooltipBorder}`);
 
         // Draw horizontal dividing line between gene expression (top) and cell trajectories (bottom)
         const axisLength = Math.min(innerWidth, innerHeight) * 0.98;
@@ -218,7 +220,7 @@ export const PseudotimeGlyph = ({
             .attr("y1", centerY)
             .attr("x2", centerX + axisLength / 2)
             .attr("y2", centerY)
-            .attr("stroke", "#333")
+            .attr("stroke", colors.chartOutline)
             .attr("stroke-width", 3)
             .attr("opacity", 0.8);
 
@@ -283,8 +285,8 @@ export const PseudotimeGlyph = ({
             .attr("cx", centerX)
             .attr("cy", centerY)
             .attr("r", 8)
-            .attr("fill", "#fff")
-            .attr("stroke", "#333")
+            .attr("fill", colors.chartSurface)
+            .attr("stroke", colors.chartOutline)
             .attr("stroke-width", 2)
             .attr("opacity", 0.9);
 
@@ -295,7 +297,7 @@ export const PseudotimeGlyph = ({
             .attr("text-anchor", "middle")
             .attr("font-size", "5px")
             .attr("font-weight", "bold")
-            .attr("fill", "#333")
+            .attr("fill", colors.chartOutline)
             .text(`t${minPseudotime.toFixed(1)}`);
 
         // Create bottom section - macroscopic cell trajectories
@@ -311,7 +313,7 @@ export const PseudotimeGlyph = ({
             .attr("text-anchor", "middle")
             .attr("font-size", "12px")
             .attr("font-weight", "bold")
-            .attr("fill", "#333")
+            .attr("fill", colors.chartOutline)
             .style("cursor", "pointer")
             .text(adata_umap_title);
 
@@ -321,10 +323,10 @@ export const PseudotimeGlyph = ({
                 .on("mouseover", function(event) {
                     const tooltipContent = `
                         <div style="font-size: 12px; line-height: 1.4;">
-                            <div style="font-weight: bold; margin-bottom: 4px; color: #fff;">UMAP Parameters:</div>
-                            <div style="color: #ccc;">Neighbors: ${umapParameters.n_neighbors}</div>
-                            <div style="color: #ccc;">PCAs: ${umapParameters.n_pcas}</div>
-                            <div style="color: #ccc;">Resolution: ${umapParameters.resolutions}</div>
+                            <div style="font-weight: bold; margin-bottom: 4px; color: ${colors.tooltipText};">UMAP Parameters:</div>
+                            <div style="color: ${colors.tooltipTextMuted};">Neighbors: ${umapParameters.n_neighbors}</div>
+                            <div style="color: ${colors.tooltipTextMuted};">PCAs: ${umapParameters.n_pcas}</div>
+                            <div style="color: ${colors.tooltipTextMuted};">Resolution: ${umapParameters.resolutions}</div>
                         </div>
                     `;
                     
@@ -395,7 +397,7 @@ export const PseudotimeGlyph = ({
                 .attr("y1", centerY)
                 .attr("x2", centerX + x)
                 .attr("y2", centerY + y)
-                .attr("stroke", "#CCCCCC")
+                .attr("stroke", colors.chartMuted)
                 .attr("stroke-width", 1)
                 .attr("opacity", 0.6);
 
@@ -406,7 +408,7 @@ export const PseudotimeGlyph = ({
                 .attr("text-anchor", "middle")
                 .attr("dominant-baseline", "central")
                 .attr("font-size", "10px")
-                .attr("fill", "#555")
+                .attr("fill", colors.chartAxis)
                 .text(cluster.toString());
         });
 
@@ -427,7 +429,7 @@ export const PseudotimeGlyph = ({
                 .attr("d", timeArc)
                 .attr("transform", `translate(${centerX}, ${centerY})`)
                 .attr("fill", "none")
-                .attr("stroke", "#E0E0E0")
+                .attr("stroke", colors.chartGrid)
                 .attr("stroke-width", 0.5)
                 .attr("stroke-dasharray", "2,2")
                 .attr("opacity", 0.7);
@@ -506,7 +508,7 @@ export const PseudotimeGlyph = ({
                 const opacity = isSelected ? 1 : 0.2;
 
                 // Apply grey color to non-selected trajectories
-                const finalColor = isSelected ? trajectoryColor : "#CCCCCC";
+                const finalColor = isSelected ? trajectoryColor : colors.chartMuted;
 
                 bottomSection.append("path")
                     .datum(pathData)
@@ -541,7 +543,7 @@ export const PseudotimeGlyph = ({
                         // Restore original appearance
                         if (!isSelected) {
                             d3.select(this)
-                                .attr("stroke", "#CCCCCC")
+                                .attr("stroke", colors.chartMuted)
                                 .attr("stroke-width", 3)
                                 .attr("opacity", 0.2);
                         }
@@ -588,7 +590,7 @@ export const PseudotimeGlyph = ({
                 }
 
                 // Use grey color for non-selected trajectories' nodes
-                const nodeColor = isSelected ? clusterColor : "#CCCCCC";
+                const nodeColor = isSelected ? clusterColor : colors.chartMuted;
                 const originalNodeColor = clusterColor;
 
                 if (isEndpoint) {
@@ -620,7 +622,7 @@ export const PseudotimeGlyph = ({
 
                                 // Restore grey color
                                 d3.select(this)
-                                    .attr("fill", "#CCCCCC")
+                                    .attr("fill", colors.chartMuted)
                                     .attr("opacity", 0.2);
                             });
                     } else {
@@ -648,7 +650,7 @@ export const PseudotimeGlyph = ({
                         .attr("cy", point.y)
                         .attr("r", 4)
                         .attr("fill", nodeColor)
-                        .attr("stroke", "#fff")
+                        .attr("stroke", colors.chartSurface)
                         .attr("stroke-width", 1)
                         .attr("opacity", isSelected ? 1 : 0.2)
                         .style("cursor", "pointer")
@@ -673,7 +675,7 @@ export const PseudotimeGlyph = ({
                             // Restore grey color for non-selected trajectories
                             if (!isSelected) {
                                 d3.select(this)
-                                    .attr("fill", "#CCCCCC")
+                                    .attr("fill", colors.chartMuted)
                                     .attr("opacity", 0.2);
                             }
                         });
@@ -734,7 +736,7 @@ export const PseudotimeGlyph = ({
                 .attr("cy", centerY)
                 .attr("r", radius)
                 .attr("fill", "none")
-                .attr("stroke", "black")
+                .attr("stroke", colors.chartOutline)
                 .attr("stroke-width", 1)
                 .attr("opacity", 0.2);
 
@@ -744,7 +746,7 @@ export const PseudotimeGlyph = ({
                 .attr("y", centerY - radius - 5)
                 .attr("text-anchor", "middle")
                 .attr("font-size", "8px")
-                .attr("fill", "#666")
+                .attr("fill", colors.chartAxis)
                 .text(`t${time.toFixed(1)}`);
         }
 
@@ -754,7 +756,7 @@ export const PseudotimeGlyph = ({
             .attr("y", centerY - 5)
             .attr("text-anchor", "middle")
             .attr("font-size", "10px")
-            .attr("fill", "#666")
+            .attr("fill", colors.chartAxis)
             .text("Low Expr");
 
         topSection.append("text")
@@ -762,7 +764,7 @@ export const PseudotimeGlyph = ({
             .attr("y", centerY - 5)
             .attr("text-anchor", "middle")
             .attr("font-size", "10px")
-            .attr("fill", "#666")
+            .attr("fill", colors.chartAxis)
             .text("High Expr");
 
         // Only proceed with gene expression specific elements if data is provided
@@ -947,7 +949,7 @@ export const PseudotimeGlyph = ({
                         .attr("cy", avgEndY)
                         .attr("r", 3)
                         .attr("fill", color)
-                        .attr("stroke", "#fff")
+                        .attr("stroke", colors.chartSurface)
                         .attr("stroke-width", 1)
                         .attr("opacity", 0)
                         .style("pointer-events", "none");
@@ -975,7 +977,7 @@ export const PseudotimeGlyph = ({
                                 <div>Time span: ${timeSpan}</div>
                                 <div>Expression range: ${minExpression.toFixed(2)} - ${maxExpression.toFixed(2)}</div>
                                 <div>Average expression: ${avgExpressionFormatted}</div>
-                                <div style="font-style: italic; color: #ccc; font-size: 11px;">Dashed line shows average expression level</div>
+                                <div style="font-style: italic; color: ${colors.tooltipTextMuted}; font-size: 11px;">Dashed line shows average expression level</div>
                             `);
                             positionTooltip(event, tooltip);
                         })
@@ -1005,7 +1007,7 @@ export const PseudotimeGlyph = ({
                     .attr("cy", point.y)
                     .attr("r", 3)
                     .attr("fill", color)
-                    .attr("stroke", "#fff")
+                    .attr("stroke", colors.chartSurface)
                     .attr("opacity", 0.6)
                     .style("cursor", "pointer")
                     .on("mouseover", function (event) {
@@ -1027,7 +1029,7 @@ export const PseudotimeGlyph = ({
                                 <div>Time: ${point.timePoint.toFixed(2)}</div>
                                 <div>Expression: ${point.expression.toFixed(3)}</div>
                                 <div>Average expression: ${avgExpressionFormatted}</div>
-                                <div style="font-style: italic; color: #ccc; font-size: 11px;">Dashed line shows average expression level</div>
+                                <div style="font-style: italic; color: ${colors.tooltipTextMuted}; font-size: 11px;">Dashed line shows average expression level</div>
                             `);
                         positionTooltip(event, tooltip);
                     })
@@ -1086,7 +1088,7 @@ export const PseudotimeGlyph = ({
             .attr("class", className)
             .attr("d", path)
             .attr("fill", color)
-            .attr("stroke", "#fff")
+            .attr("stroke", colors.chartSurface)
             .attr("stroke-width", 1)
             .attr("opacity", opacity);
     };
@@ -1104,7 +1106,7 @@ export const PseudotimeGlyph = ({
                         height: "4px",
                         backgroundColor: areaColor,
                         zIndex: 10,
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                        boxShadow: "0 1px 2px var(--app-shadow-soft)"
                     }}
                     title={areaName ? `Region: ${areaName}` : "Selected Region"}
                 />
@@ -1116,7 +1118,7 @@ export const PseudotimeGlyph = ({
                 top: areaColor ? '9px' : '5px', // Adjust position if color bar is present
                 left: '5px',
                 zIndex: 999,
-                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                backgroundColor: 'var(--app-overlay-soft)',
                 borderRadius: '4px',
                 padding: '2px'
             }}>
@@ -1174,12 +1176,12 @@ export const PseudotimeGlyph = ({
                                 });
                             } else {
                                 // Reduce transparency for all other trajectories (including selected)
-                                path.attr('stroke', '#CCCCCC')
+                                path.attr('stroke', colors.chartMuted)
                                     .attr('stroke-width', 3)
                                     .attr('opacity', 0.2);
                                 
                                 // Reduce transparency for all other trajectory nodes
-                                nodes.attr('fill', '#CCCCCC').attr('opacity', 0.2);
+                                nodes.attr('fill', colors.chartMuted).attr('opacity', 0.2);
                             }
                         }
                     });
@@ -1213,12 +1215,12 @@ export const PseudotimeGlyph = ({
                                 });
                             } else {
                                 // Restore non-selected trajectory path appearance
-                                path.attr('stroke', '#CCCCCC')
+                                path.attr('stroke', colors.chartMuted)
                                     .attr('stroke-width', 3)
                                     .attr('opacity', 0.2);
                                 
                                 // Restore non-selected trajectory nodes appearance
-                                nodes.attr('fill', '#CCCCCC').attr('opacity', 0.2);
+                                nodes.attr('fill', colors.chartMuted).attr('opacity', 0.2);
                             }
                         }
                     });
@@ -1232,10 +1234,10 @@ export const PseudotimeGlyph = ({
                         top: areaColor ? '34px' : '30px', // Adjust position if color bar is present
                         right: '5px',
                         zIndex: 999,
-                        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                        backgroundColor: 'var(--app-overlay-soft)',
                         borderRadius: '4px',
                         padding: '3px 6px',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                        boxShadow: '0 1px 3px var(--app-shadow)',
                         maxWidth: '48%'
                     }}>
                         {legendItems.map(item => (
@@ -1253,7 +1255,7 @@ export const PseudotimeGlyph = ({
                                         <div>Coverage: {(item.coverage * 100).toFixed(1)}% ({item.validCells}/{item.totalCells} cells)</div>
                                     </div>
                                 }>
-                                    <span style={{ fontSize: '10px', color: '#333', fontWeight: item.index === selectedTrajectory ? 600 : 400 }}>
+                                    <span style={{ fontSize: '10px', color: 'var(--app-text)', fontWeight: item.index === selectedTrajectory ? 600 : 400 }}>
                                         {item.name}
                                     </span>
                                 </Tooltip>
@@ -1305,7 +1307,7 @@ export const PseudotimeGlyph = ({
                         width: '100%',
                         height: '100%',
                         display: 'block',
-                        backgroundColor: '#f9f9f9'
+                        backgroundColor: 'var(--app-surface-subtle)'
                     }}
                     preserveAspectRatio="xMidYMid meet"
                 />

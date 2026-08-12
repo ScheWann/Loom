@@ -308,7 +308,7 @@ export const UmapSettingsPopup = ({
           right: 0,
           bottom: 0,
           zIndex: 999,
-          backgroundColor: 'rgba(0, 0, 0, 0.1)',
+          backgroundColor: 'var(--app-scrim)',
           cursor: 'default',
           pointerEvents: 'auto'
         }}
@@ -324,10 +324,10 @@ export const UmapSettingsPopup = ({
           left: Math.min(position.x, window.innerWidth - 420),
           top: Math.min(position.y, window.innerHeight - 400),
           zIndex: 1000,
-          background: '#ffffff',
-          border: '1px solid #d9d9d9',
+          background: 'var(--app-surface)',
+          border: '1px solid var(--app-border-strong)',
           borderRadius: 8,
-          boxShadow: '0 6px 16px rgba(0, 0, 0, 0.12)',
+          boxShadow: '0 6px 16px var(--app-shadow)',
           padding: 12,
           minWidth: 240,
           maxWidth: 320,
@@ -347,10 +347,10 @@ export const UmapSettingsPopup = ({
           justifyContent: 'center'
         }}
           onClick={() => setVisible(false)}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+          onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--app-surface-hover)'}
           onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
         >
-          <CloseOutlined style={{ fontSize: 12, color: '#666' }} />
+          <CloseOutlined style={{ fontSize: 12, color: 'var(--app-text-secondary)' }} />
         </div>
 
         {/* Title */}
@@ -358,7 +358,7 @@ export const UmapSettingsPopup = ({
           fontWeight: 'bold',
           marginBottom: 5,
           fontSize: 14,
-          color: '#262626',
+          color: 'var(--app-text-strong)',
           paddingRight: 20,
           textAlign: 'left'
         }}>
@@ -371,7 +371,7 @@ export const UmapSettingsPopup = ({
             <label style={{
               fontSize: 12,
               fontWeight: 500,
-              color: '#595959',
+              color: 'var(--app-text-secondary)',
               minWidth: '100px',
               textAlign: 'left'
             }}>
@@ -393,7 +393,7 @@ export const UmapSettingsPopup = ({
             <label style={{
               fontSize: 12,
               fontWeight: 500,
-              color: '#595959',
+              color: 'var(--app-text-secondary)',
               minWidth: '100px',
               textAlign: 'left'
             }}>
@@ -425,7 +425,7 @@ export const UmapSettingsPopup = ({
             <label style={{
               fontSize: 12,
               fontWeight: 500,
-              color: '#595959',
+              color: 'var(--app-text-secondary)',
               minWidth: '100px',
               textAlign: 'left'
             }}>
@@ -456,7 +456,7 @@ export const UmapSettingsPopup = ({
             <label style={{
               fontSize: 12,
               fontWeight: 500,
-              color: '#595959',
+              color: 'var(--app-text-secondary)',
               minWidth: '100px',
               textAlign: 'left'
             }}>
@@ -508,13 +508,13 @@ export const UmapSettingsPopup = ({
         <div style={{ 
           marginTop: 12, 
           paddingTop: 12, 
-          borderTop: '1px solid #f0f0f0' 
+          borderTop: '1px solid var(--app-border)' 
         }}>
           <div style={{
             fontWeight: 'bold',
             marginBottom: 8,
             fontSize: 12,
-            color: '#262626',
+            color: 'var(--app-text-strong)',
             textAlign: 'left'
           }}>
             Direct Slingshot Analysis
@@ -525,7 +525,7 @@ export const UmapSettingsPopup = ({
               <label style={{
                 fontSize: 12,
                 fontWeight: 500,
-                color: '#595959',
+                color: 'var(--app-text-secondary)',
                 minWidth: '100px',
                 textAlign: 'left'
               }}>

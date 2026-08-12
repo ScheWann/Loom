@@ -194,7 +194,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
             <div style={{ marginBottom: 8 }}>
                 <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                     {availableGenes.length === 0 ? (
-                        <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic' }}>
+                        <div style={{ fontSize: 12, color: 'var(--app-text-muted)', fontStyle: 'italic' }}>
                             No genes added. Use search above to add genes.
                         </div>
                     ) : (
@@ -203,7 +203,7 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                                 display: 'flex',
                                 alignItems: 'center',
                                 padding: '4px 0',
-                                borderBottom: '1px solid #f0f0f0',
+                                borderBottom: '1px solid var(--app-border)',
                             }}>
                                 <Checkbox
                                     checked={selectedGenes.includes(gene)}
@@ -220,10 +220,10 @@ export const GeneSettings = ({ sampleId, availableGenes, setAvailableGenes, sele
                                     style={{ marginRight: 8 }}
                                 />
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                    <span style={{ fontSize: 12, color: selectedGenes.includes(gene) ? '#000' : '#999' }}>
+                                    <span style={{ fontSize: 12, color: selectedGenes.includes(gene) ? 'var(--app-text)' : 'var(--app-text-muted)' }}>
                                         {gene}
                                     </span>
-                                    <Button type="text" size="small" onClick={() => removeGene(gene)} style={{ padding: '0 4px', fontSize: 10, color: '#333333' }} icon={<CloseOutlined />} />
+                                    <Button type="text" size="small" onClick={() => removeGene(gene)} style={{ padding: '0 4px', fontSize: 10, color: 'var(--app-text-secondary)' }} icon={<CloseOutlined />} />
                                 </div>
                             </div>
                         ))

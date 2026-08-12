@@ -246,12 +246,19 @@ export const LineChart = ({
         .attr("d", line);
     });
 
-    // Add axes
+    // Add axes (colors come from CSS variables so they follow the theme)
     g.append("g")
       .attr("transform", `translate(0,${innerHeight + X_AXIS_OFFSET})`)
-      .call(d3.axisBottom(xScale).ticks(compact ? 5 : 10));
+      .style("color", "var(--app-chart-axis)")
+      .call(d3.axisBottom(xScale).ticks(compact ? 5 : 10))
+      .selectAll("text")
+      .style("fill", "var(--app-chart-axis)");
 
-    g.append("g").call(d3.axisLeft(yScale).ticks(compact ? 4 : 10));
+    g.append("g")
+      .style("color", "var(--app-chart-axis)")
+      .call(d3.axisLeft(yScale).ticks(compact ? 4 : 10))
+      .selectAll("text")
+      .style("fill", "var(--app-chart-axis)");
 
     // Bridge the small visual gap created by moving the X axis downward.
     g.append("line")
@@ -269,6 +276,7 @@ export const LineChart = ({
         .attr("y", adjustedMargin.top + innerHeight + 35 + X_AXIS_OFFSET)
         .attr("text-anchor", "middle")
         .attr("font-size", 12)
+        .style("fill", "var(--app-text)")
         .text("Distance along Trajectory[mm]");
 
       svg
@@ -278,6 +286,7 @@ export const LineChart = ({
         .attr("y", 18)
         .attr("text-anchor", "middle")
         .attr("font-size", 12)
+        .style("fill", "var(--app-text)")
         .text("Estimated Expression");
     }
 
@@ -305,6 +314,7 @@ export const LineChart = ({
           .attr("y", 8)
           .attr("dy", "0.35em")
           .attr("font-size", 10)
+          .style("fill", "var(--app-text)")
           .text(item.label);
       });
     }
@@ -321,7 +331,7 @@ export const LineChart = ({
       // Add vertical guideline
       const guideline = g.append("line")
         .attr("class", "guideline")
-        .style("stroke", "#666")
+        .style("stroke", "var(--app-chart-axis)")
         .style("stroke-width", 1)
         .style("stroke-dasharray", "3,3")
         .style("pointer-events", "none")
@@ -383,7 +393,7 @@ export const LineChart = ({
             height: '4px',
             backgroundColor: areaColor,
             zIndex: 10,
-            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+            boxShadow: '0 1px 2px var(--app-shadow-soft)',
           }}
           title={areaName ? `Region: ${areaName}` : 'Selected Region'}
         />

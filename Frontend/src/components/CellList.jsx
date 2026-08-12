@@ -36,7 +36,7 @@ export const CellSettings = ({
             {/* Cell types list */}
             <div style={{ marginBottom: 8 }}>
                 {!cellTypesData || cellTypesData.length === 0 ? (
-                    <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
+                    <div style={{ fontSize: 12, color: 'var(--app-text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>
                         No cell types available. Please select and confirm samples first.
                     </div>
                 ) : (
@@ -46,7 +46,7 @@ export const CellSettings = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 padding: '6px 0',
-                                borderBottom: '1px solid #f0f0f0',
+                                borderBottom: '1px solid var(--app-border)',
                             }}>
                                 <Checkbox
                                     checked={selectedCellTypes.includes(name)}
@@ -63,14 +63,14 @@ export const CellSettings = ({
                                     <div style={{ flex: 1 }}>
                                         <span style={{
                                             fontSize: 12,
-                                            color: selectedCellTypes.includes(name) ? '#000' : '#999',
+                                            color: selectedCellTypes.includes(name) ? 'var(--app-text)' : 'var(--app-text-muted)',
                                             fontWeight: selectedCellTypes.includes(name) ? '500' : 'normal'
                                         }}>
                                             {name}
                                         </span>
                                         <span style={{
                                             fontSize: 10,
-                                            color: '#999',
+                                            color: 'var(--app-text-muted)',
                                             marginLeft: '8px',
                                             fontStyle: 'italic'
                                         }}>

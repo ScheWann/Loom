@@ -408,12 +408,19 @@ export const ScatterplotUmap = ({
         clearHoverState();
       });
 
-    // Axes
+    // Axes (colors come from CSS variables so they follow the theme)
     g.append("g")
       .attr("transform", `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale).ticks(5));
+      .style("color", "var(--app-chart-axis)")
+      .call(d3.axisBottom(xScale).ticks(5))
+      .selectAll("text")
+      .style("fill", "var(--app-chart-axis)");
 
-    g.append("g").call(d3.axisLeft(yScale).ticks(5));
+    g.append("g")
+      .style("color", "var(--app-chart-axis)")
+      .call(d3.axisLeft(yScale).ticks(5))
+      .selectAll("text")
+      .style("fill", "var(--app-chart-axis)");
 
     // Title
     svg
@@ -423,6 +430,7 @@ export const ScatterplotUmap = ({
       .attr("font-size", 12)
       .attr("font-weight", 600)
       .text(title)
+      .style("fill", "var(--app-text)")
       .style("cursor", "pointer")
       .on("click", (event) => {
         // Open UMAP settings popup
@@ -479,6 +487,7 @@ export const ScatterplotUmap = ({
         .attr("y", i * 15 + 3)
         .text(cl)
         .attr("font-size", 9)
+        .style("fill", "var(--app-text)")
         .attr(
           "opacity",
           !localHoveredCluster ||
@@ -522,7 +531,7 @@ export const ScatterplotUmap = ({
             height: "4px",
             backgroundColor: areaColor,
             zIndex: 10,
-            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            boxShadow: "0 1px 2px var(--app-shadow-soft)",
           }}
           title={areaName ? `Region: ${areaName}` : "Selected Region"}
         />

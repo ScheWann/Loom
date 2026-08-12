@@ -45,7 +45,7 @@ export const UmapComponent = ({
           padding: 5
         }}>
           <Spin size="large" />
-          <div style={{ fontSize: '12px', color: '#999' }}>
+          <div style={{ fontSize: '12px', color: 'var(--app-text-muted)' }}>
             {isUpdating ? 'Updating' : 'Generating'} {title}...
           </div>
         </div>

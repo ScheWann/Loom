@@ -839,7 +839,7 @@ export const PseudotimeGlyphComponent = forwardRef(({
         return (
             <div style={{ textAlign: 'center', marginTop: '15%' }}>
                 <Spin size="large" />
-                <div style={{ textAlign: 'center', marginTop: '8px', color: '#666', fontSize: '12px' }}>
+                <div style={{ textAlign: 'center', marginTop: '8px', color: 'var(--app-text-secondary)', fontSize: '12px' }}>
                     {(() => {
                         const loadingNames = (umapDataSets || [])
                             .filter(ds => pseudotimeLoadingStates?.[ds.adata_umap_title])
@@ -971,9 +971,9 @@ export const PseudotimeGlyphComponent = forwardRef(({
                                 width: '100%',
                                 height: '99%',
                                 textAlign: 'center',
-                                border: '1px solid #ddd',
+                                border: '1px solid var(--app-border)',
                                 borderRadius: '8px',
-                                backgroundColor: '#f9f9f9',
+                                backgroundColor: 'var(--app-surface-subtle)',
                                 position: 'relative',
                                 overflow: 'hidden',
                                 boxSizing: 'border-box'
@@ -991,7 +991,7 @@ export const PseudotimeGlyphComponent = forwardRef(({
                                         top: '5px',
                                         right: '2px',
                                         zIndex: 10,
-                                        color: '#999',
+                                        color: 'var(--app-text-muted)',
                                         width: '20px',
                                         height: '20px',
                                         minWidth: '20px',
@@ -1007,11 +1007,11 @@ export const PseudotimeGlyphComponent = forwardRef(({
                                     flexDirection: 'column',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    border: '2px dashed #ccc',
+                                    border: '2px dashed var(--app-border-strong)',
                                     borderRadius: '8px',
-                                    color: '#666',
+                                    color: 'var(--app-text-secondary)',
                                     fontSize: '12px',
-                                    backgroundColor: '#fafafa',
+                                    backgroundColor: 'var(--app-surface-subtle)',
                                     boxSizing: 'border-box'
                                 }}>
                                     <Spin size="large" style={{ marginBottom: '10px' }} />
@@ -1019,7 +1019,7 @@ export const PseudotimeGlyphComponent = forwardRef(({
                                         <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
                                             Generating Pseudotime
                                         </div>
-                                        <div style={{ fontSize: '11px', color: '#999' }}>
+                                        <div style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
                                             {trajectoryData.display_title}
                                         </div>
                                     </div>
