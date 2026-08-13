@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Empty, Spin, Checkbox, Tooltip } from 'antd';
 import { COLOR_BREWER2_PALETTE, COLOR_BREWER2_PALETTE_GENE, COLOR_BREWER2_PALETTE_EXTRA } from "./Utils";
-import { useAppTheme } from "../theme";
+import { useAppTheme, resolveRoiColor } from "../theme";
 
 const COLORS = COLOR_BREWER2_PALETTE;
 const GENE_COLORS = COLOR_BREWER2_PALETTE_GENE;
@@ -1104,7 +1104,7 @@ export const PseudotimeGlyph = ({
                         left: 0,
                         right: 0,
                         height: "4px",
-                        backgroundColor: areaColor,
+                        backgroundColor: resolveRoiColor(areaColor, colors),
                         zIndex: 10,
                         boxShadow: "0 1px 2px var(--app-shadow-soft)"
                     }}

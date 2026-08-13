@@ -7,6 +7,7 @@ import { CloseOutlined, EditOutlined, RedoOutlined, BorderOutlined } from '@ant-
 import { OrthographicView } from '@deck.gl/core';
 import { BitmapLayer, ScatterplotLayer, PolygonLayer, LineLayer } from '@deck.gl/layers';
 import { convertHEXToRGB, COLOR_PALETTE, getSequentialColor } from './Utils';
+import { useAppTheme, isThemeRoiColor, resolveRoiColor } from '../theme';
 
 
 // A recorded view state also carries the container size and a transitionInterpolator that
@@ -51,6 +52,7 @@ export const SampleViewer = forwardRef(({
     onAreaSaved,  // Add new callback for when areas are saved
     onAreaDeleted
 }, ref) => {
+    const { colors } = useAppTheme();
     const containerRef = useRef(null);
     const areaEditPopupRef = useRef(null);
     const lastLoadedTrajectoryRef = useRef(null); // Track the last loaded trajectory gene combination to prevent redundant API calls
@@ -153,18 +155,25 @@ export const SampleViewer = forwardRef(({
     const [isAreaTooltipVisible, setIsAreaTooltipVisible] = useState(false);
     const [pendingArea, setPendingArea] = useState(null);
     const [areaName, setAreaName] = useState('');
-    const [areaColor, setAreaColor] = useState('#0084F9');
+    const [areaColor, setAreaColor] = useState(colors.roi);
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
     // Area edit/delete popup state
     const [isAreaEditPopupVisible, setIsAreaEditPopupVisible] = useState(false);
     const [selectedAreaForEdit, setSelectedAreaForEdit] = useState(null);
     const [editAreaName, setEditAreaName] = useState('');
-    const [editAreaColor, setEditAreaColor] = useState('#0084F9');
+    const [editAreaColor, setEditAreaColor] = useState(colors.roi);
     const [editPopupPosition, setEditPopupPosition] = useState({ x: 0, y: 0 });
     const [editNeighbors, setEditNeighbors] = useState(10);
     const [editNPcas, setEditNPcas] = useState(30);
     const [editResolutions, setEditResolutions] = useState(1);
+
+    // Follow the theme's ROI color while it is still the untouched default; a
+    // color the user picked, or one restored from a saved area, is left alone.
+    useEffect(() => {
+        setAreaColor((prev) => (isThemeRoiColor(prev) ? colors.roi : prev));
+        setEditAreaColor((prev) => (isThemeRoiColor(prev) ? colors.roi : prev));
+    }, [colors]);
 
     // After the popup renders, clamp it to the viewport using its real DOM size.
     // This avoids bottom overflow when the content is taller than the estimated height.
@@ -981,7 +990,7 @@ export const SampleViewer = forwardRef(({
                     width: `${tile.relativeWidth * 100}%`,
                     height: `${tile.relativeHeight * 100}%`,
                     cursor: 'pointer',
-                    border: '1px solid rgba(24, 144, 255, 0.3)',
+                    border: '1px solid var(--app-accent-faint)',
                     borderRadius: '2px',
                     overflow: 'hidden',
                     boxSizing: 'border-box'
@@ -1132,7 +1141,7 @@ export const SampleViewer = forwardRef(({
                 sampleId,
                 points: [...points],
                 name: roiName,
-                color: '#0084F9'
+                color: colors.roi
             };
 
             // Find the rightmost point of the drawn area for tooltip positioning
@@ -1212,7 +1221,7 @@ export const SampleViewer = forwardRef(({
         setIsAreaTooltipVisible(false);
         setPendingArea(null);
         setAreaName('');
-        setAreaColor('#0084F9');
+        setAreaColor(colors.roi);
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
@@ -1224,7 +1233,7 @@ export const SampleViewer = forwardRef(({
         setIsAreaTooltipVisible(false);
         setPendingArea(null);
         setAreaName('');
-        setAreaColor('#0084F9');
+        setAreaColor(colors.roi);
         setIsDrawing(false);
         setDrawingPoints([]);
         setCurrentDrawingSample(null);
@@ -1336,7 +1345,7 @@ export const SampleViewer = forwardRef(({
 
         setSelectedAreaForEdit(targetArea);
         setEditAreaName(targetArea.name);
-        setEditAreaColor(targetArea.color);
+        setEditAreaColor(resolveRoiColor(targetArea.color, colors));
         setEditNeighbors(targetArea.neighbors || 10);
         setEditNPcas(targetArea.n_pcas || 30);
         setEditResolutions(targetArea.resolutions || 1);
@@ -1484,7 +1493,7 @@ export const SampleViewer = forwardRef(({
         setIsAreaEditPopupVisible(false);
         setSelectedAreaForEdit(null);
         setEditAreaName('');
-        setEditAreaColor('#0084F9');
+        setEditAreaColor(colors.roi);
         setEditNeighbors(10);
         setEditNPcas(30);
         setEditResolutions(1);
@@ -2935,7 +2944,7 @@ export const SampleViewer = forwardRef(({
             // Use editAreaColor for preview if this area is being edited, otherwise use original color
             const colorToUse = (isAreaEditPopupVisible && selectedAreaForEdit?.id === area.id)
                 ? editAreaColor
-                : area.color;
+                : resolveRoiColor(area.color, colors);
             const areaColor = convertHEXToRGB(colorToUse || '#ff0000');
 
             layers.push(new PolygonLayer({
@@ -3006,16 +3015,16 @@ export const SampleViewer = forwardRef(({
                         getFillColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [0, 132, 249, 255] : [0, 132, 249, 255];
+                                return shouldSnap ? [...convertHEXToRGB(colors.roi), 255] : [...convertHEXToRGB(colors.roi), 255];
                             }
-                            return [0, 132, 249, 240];
+                            return [...convertHEXToRGB(colors.roi), 240];
                         },
                         getLineColor: d => {
                             if (d.isFirst && pointsToShow.length >= 3) {
                                 const shouldSnap = mousePosition && shouldSnapToFirst(mousePosition);
-                                return shouldSnap ? [0, 132, 249, 255] : [0, 132, 249, 255];
+                                return shouldSnap ? [...convertHEXToRGB(colors.roi), 255] : [...convertHEXToRGB(colors.roi), 255];
                             }
-                            return [0, 132, 249, 255];
+                            return [...convertHEXToRGB(colors.roi), 255];
                         },
                         getLineWidth: d => d.isFirst && pointsToShow.length >= 3 ? 3 : 2,
                         radiusUnits: 'pixels',
@@ -3039,7 +3048,7 @@ export const SampleViewer = forwardRef(({
                         data: lineSegments,
                         getSourcePosition: d => d.sourcePosition,
                         getTargetPosition: d => d.targetPosition,
-                        getColor: [0, 132, 249, 240],
+                        getColor: [...convertHEXToRGB(colors.roi), 240],
                         getWidth: 2,
                         widthUnits: 'pixels',
                         pickable: false,
@@ -3052,8 +3061,8 @@ export const SampleViewer = forwardRef(({
                         id: 'drawing-preview',
                         data: [{ polygon: pointsToShow }],
                         getPolygon: d => d.polygon,
-                        getFillColor: [0, 132, 249, 80],
-                        getLineColor: [0, 132, 249, 0],
+                        getFillColor: [...convertHEXToRGB(colors.roi), 80],
+                        getLineColor: [...convertHEXToRGB(colors.roi), 0],
                         getLineWidth: 0,
                         pickable: false,
                     }));
@@ -3070,8 +3079,8 @@ export const SampleViewer = forwardRef(({
                         data: [{ position: mousePosition }],
                         getPosition: d => d.position,
                         getRadius: shouldSnap ? 8 : 5,
-                        getFillColor: shouldSnap ? [0, 132, 249, 235] : [0, 132, 249, 220],
-                        getLineColor: shouldSnap ? [0, 132, 249, 255] : [0, 132, 249, 245],
+                        getFillColor: shouldSnap ? [...convertHEXToRGB(colors.roi), 235] : [...convertHEXToRGB(colors.roi), 220],
+                        getLineColor: shouldSnap ? [...convertHEXToRGB(colors.roi), 255] : [...convertHEXToRGB(colors.roi), 245],
                         getLineWidth: shouldSnap ? 3 : 1,
                         radiusUnits: 'pixels',
                         lineWidthUnits: 'pixels',
@@ -3091,7 +3100,7 @@ export const SampleViewer = forwardRef(({
                             }],
                             getSourcePosition: d => d.sourcePosition,
                             getTargetPosition: d => d.targetPosition,
-                            getColor: shouldSnap ? [0, 132, 249, 235] : [0, 132, 249, 220],
+                            getColor: shouldSnap ? [...convertHEXToRGB(colors.roi), 235] : [...convertHEXToRGB(colors.roi), 220],
                             getWidth: shouldSnap ? 4 : 2,
                             widthUnits: 'pixels',
                             pickable: false,
@@ -3106,8 +3115,8 @@ export const SampleViewer = forwardRef(({
                             data: [{ position: firstPoint }],
                             getPosition: d => d.position,
                             getRadius: 15,
-                            getFillColor: [0, 132, 249, 110],
-                            getLineColor: [0, 132, 249, 220],
+                            getFillColor: [...convertHEXToRGB(colors.roi), 110],
+                            getLineColor: [...convertHEXToRGB(colors.roi), 220],
                             getLineWidth: 2,
                             radiusUnits: 'pixels',
                             lineWidthUnits: 'pixels',
@@ -3166,7 +3175,7 @@ export const SampleViewer = forwardRef(({
                             }],
                             getSourcePosition: d => d.sourcePosition,
                             getTargetPosition: d => d.targetPosition,
-                            getColor: [0, 150, 255, 200], // Blue for existing trajectories
+                            getColor: [...convertHEXToRGB(colors.accent), 200],
                             getWidth: 3,
                             widthUnits: 'pixels',
                             pickable: true
@@ -3184,8 +3193,8 @@ export const SampleViewer = forwardRef(({
                                 endPos: endPos
                             }],
                             getPolygon: d => d.polygon,
-                            getFillColor: [0, 150, 255, 200],
-                            getLineColor: [0, 100, 200, 255],
+                            getFillColor: [...convertHEXToRGB(colors.accent), 200],
+                            getLineColor: [...convertHEXToRGB(colors.accent), 255],
                             getLineWidth: 1,
                             lineWidthUnits: 'pixels',
                             pickable: true
@@ -3384,7 +3393,7 @@ export const SampleViewer = forwardRef(({
         }
 
         return layers;
-    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea, hoveredTrajectory, calculateSavedTrajectoryArrowCoverageArea, isTrajectoryAnalyzing, analyzingTrajectories]);
+    }, [customAreas, isDrawing, isAreaTooltipVisible, drawingPoints, pendingArea, areaColor, currentDrawingSample, sampleOffsets, mousePosition, shouldSnapToFirst, isAreaEditPopupVisible, selectedAreaForEdit, editAreaColor, isTrajectoryMode, trajectoryStart, trajectoryEnd, arrowCoverageArea, hoveredTrajectory, calculateSavedTrajectoryArrowCoverageArea, isTrajectoryAnalyzing, analyzingTrajectories, colors]);
 
     // Combine all layers
     const layers = useMemo(() => {
@@ -4705,8 +4714,8 @@ export const SampleViewer = forwardRef(({
                                         top: `${Math.max(0, Math.min(100, top))}%`,
                                         width: `${Math.max(0, Math.min(100 - left, width))}%`,
                                         height: `${Math.max(0, Math.min(100 - top, height))}%`,
-                                        border: '2px solid #1890ff',
-                                        backgroundColor: 'rgba(24, 144, 255, 0.2)',
+                                        border: '2px solid var(--app-accent)',
+                                        backgroundColor: 'var(--app-accent-soft)',
                                         pointerEvents: 'none',
                                         boxSizing: 'border-box',
                                         zIndex: 10
@@ -4757,7 +4766,7 @@ export const SampleViewer = forwardRef(({
                             height: 300,
                             zIndex: 15,
                             backgroundColor: 'var(--app-overlay)',
-                            border: '2px solid #1890ff',
+                            border: '2px solid var(--app-accent)',
                             borderRadius: 8,
                             boxShadow: '0 4px 12px var(--app-shadow)',
                             overflow: 'hidden',
@@ -4951,7 +4960,7 @@ export const SampleViewer = forwardRef(({
                                 fontWeight: 'bold',
                                 marginBottom: 5,
                                 fontSize: 14,
-                                color: isTrajectoryMode ? '#1890ff' : 'var(--app-text-strong)',
+                                color: isTrajectoryMode ? 'var(--app-accent)' : 'var(--app-text-strong)',
                                 paddingRight: 20,
                                 textAlign: 'left'
                             }}>

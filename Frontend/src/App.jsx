@@ -12,11 +12,40 @@ import { fetchExampleState } from "./components/ExampleState";
 import { useAppTheme } from "./theme";
 
 // Custom theme configuration
-const customTheme = {
+const lightTheme = {
   token: {
     colorPrimary: "#1890ff",
     colorPrimaryHover: "#40a9ff",
     colorPrimaryActive: "#096dd9",
+  },
+};
+
+// Dark mode runs on an amber accent instead of the blue one: blue reads dull
+// on the dark surfaces, and the warm accent sits better with the logo.
+//
+// The header buttons use antd's gold / volcano presets, which read the preset
+// tokens directly — 6 is the base, 5 the hover and 7 the active shade. antd's
+// dark palettes are ordered dark-to-light, so the shades are shifted here to
+// keep "hover brightens, press dims" and to clear ~4.5:1 on the dark surface.
+//
+// Amber needs dark text on top of it rather than antd's white, which is what
+// the component tokens below fix (primary buttons, checkbox ticks, the switch).
+const darkTheme = {
+  token: {
+    colorPrimary: "#ffc069",
+    colorPrimaryHover: "#ffd591",
+    colorPrimaryActive: "#d48806",
+    gold6: "#e8b339",
+    gold5: "#f3cc62",
+    gold7: "#d89614",
+    volcano6: "#e87040",
+    volcano5: "#f3956a",
+    volcano7: "#d84a1b",
+  },
+  components: {
+    Button: { primaryColor: "#2b1d00" },
+    Checkbox: { colorWhite: "#2b1d00" },
+    Switch: { colorTextLightSolid: "#2b1d00" },
   },
 };
 
@@ -25,7 +54,7 @@ function App() {
   const { darkMode, setDarkMode } = useAppTheme();
   const antdTheme = useMemo(
     () => ({
-      ...customTheme,
+      ...(darkMode ? darkTheme : lightTheme),
       algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
     }),
     [darkMode]
@@ -599,12 +628,17 @@ function App() {
                 onClick={() => setUploadFormVisible(true)}
                 icon={<PlusOutlined />}
               /> */}
-              <Button size="small" color="blue" variant="outlined" onClick={confirmSamples}>
+              <Button
+                size="small"
+                color={darkMode ? "gold" : "blue"}
+                variant="outlined"
+                onClick={confirmSamples}
+              >
                 Confirm
               </Button>
               <Button
                 size="small"
-                color="purple"
+                color={darkMode ? "volcano" : "purple"}
                 variant="outlined"
                 onClick={loadExample}
                 title="Load a pre-computed example: sample, ROI, UMAP, pseudotime and spatial trajectory"

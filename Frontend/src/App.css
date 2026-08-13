@@ -56,6 +56,27 @@ body {
   justify-content: flex-end;
 }
 
+/* antd lays the switch's inner labels out as text, which leaves the sun/moon
+   icons ~0.5px above the track's center line (and so above the knob's). Center
+   them as flex items instead. */
+.themeToggle .ant-switch .ant-switch-inner .ant-switch-inner-checked,
+.themeToggle .ant-switch .ant-switch-inner .ant-switch-inner-unchecked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Each icon sits toward its own end of the track — the sun (knob on the left)
+   toward the right edge, the moon (knob on the right) toward the left — so
+   neither crowds the knob. Both end up 4px from their edge. */
+.themeToggle .ant-switch .ant-switch-inner .ant-switch-inner-unchecked {
+  transform: translateX(2px);
+}
+
+.themeToggle .ant-switch .ant-switch-inner .ant-switch-inner-checked {
+  transform: translateX(-2px);
+}
+
 .content {
   width: calc(100% - 20px);
   height: 100%;
@@ -107,7 +128,7 @@ body {
 
 .sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-placeholder {
   top: 50%;
-  transform: translateY(calc(-50% + 1px));
+  transform: translateY(-50%);
   line-height: 20px;
 }
 
@@ -117,7 +138,6 @@ body {
   height: 18px;
   line-height: 18px;
   margin-block: 0;
-  transform: translateY(0.6px);
 }
 
 .sample-multi-select.ant-select-multiple.ant-select-sm .ant-select-selection-item-content {

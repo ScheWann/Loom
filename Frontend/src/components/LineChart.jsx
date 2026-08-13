@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { COLOR_BREWER2_PALETTE } from "./Utils";
+import { useAppTheme, resolveRoiColor } from "../theme";
 
 const COLORS = COLOR_BREWER2_PALETTE;
 
@@ -64,6 +65,7 @@ export const LineChart = ({
   areaColor,
   areaName,
 }) => {
+  const { colors } = useAppTheme();
   const svgRef = useRef();
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 400, height: 200 });
@@ -391,7 +393,7 @@ export const LineChart = ({
             left: 0,
             right: 0,
             height: '4px',
-            backgroundColor: areaColor,
+            backgroundColor: resolveRoiColor(areaColor, colors),
             zIndex: 10,
             boxShadow: '0 1px 2px var(--app-shadow-soft)',
           }}

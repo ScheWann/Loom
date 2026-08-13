@@ -3,6 +3,7 @@ import * as d3 from "d3";
 import { GOAnalysisWindow } from "./GOAnalysisWindow";
 import { UmapSettingsPopup } from "./UmapSettingsPopup";
 import { COLOR_BREWER2_PALETTE } from "./Utils";
+import { useAppTheme, resolveRoiColor } from "../theme";
 
 const COLORS = COLOR_BREWER2_PALETTE;
 
@@ -36,6 +37,7 @@ export const ScatterplotUmap = ({
   areaName,
   goAnalysis,
 }) => {
+  const { colors } = useAppTheme();
   const containerRef = useRef();
   const svgRef = useRef();
 
@@ -529,7 +531,7 @@ export const ScatterplotUmap = ({
             left: 0,
             right: 0,
             height: "4px",
-            backgroundColor: areaColor,
+            backgroundColor: resolveRoiColor(areaColor, colors),
             zIndex: 10,
             boxShadow: "0 1px 2px var(--app-shadow-soft)",
           }}
